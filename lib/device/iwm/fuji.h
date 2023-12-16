@@ -174,6 +174,19 @@ protected:
     void send_extended_status_reply_packet() override{};
     void send_extended_status_dib_reply_packet() override{};
 
+    uint8_t iwm_ctrl_base64_encode_input();      // 0xD0
+    uint8_t iwm_ctrl_base64_encode_compute();    // 0xCF
+    uint8_t iwm_stat_base64_encode_length();     // 0xCE
+    uint8_t iwm_stat_base64_encode_output();     // 0xCD
+    uint8_t iwm_ctrl_base64_decode_input();      // 0xCC
+    uint8_t iwm_ctrl_base64_decode_compute();    // 0xCB
+    uint8_t iwm_stat_base64_decode_length();     // 0xCA
+    uint8_t iwm_stat_base64_decode_output();     // 0xC9
+    uint8_t iwm_ctrl_hash_input();               // 0xC8
+    uint8_t iwm_ctrl_hash_compute();             // 0xC7
+    uint8_t iwm_stat_hash_length();              // 0xC6
+    uint8_t iwm_stat_hash_output();              // 0xC5
+
 public:
     bool boot_config = true;
     

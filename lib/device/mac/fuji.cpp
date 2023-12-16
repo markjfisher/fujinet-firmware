@@ -422,7 +422,7 @@ void iwmFuji::iwm_stat_net_get_wifi_status() // SP Status command
 // Mount Server
 void iwmFuji::iwm_ctrl_mount_host() // SP CTRL command
 {
-    unsigned char hostSlot = data_buffer[0]; // adamnet_recv();
+    unsigned char hostSlot = data_buffer[0]; 
     Debug_printf("\r\nFuji cmd: MOUNT HOST no. %d", hostSlot);
 
     if ((hostSlot < 8) && (hostMounted[hostSlot] == false))
@@ -435,7 +435,7 @@ void iwmFuji::iwm_ctrl_mount_host() // SP CTRL command
 // UnMount Server
 void iwmFuji::iwm_ctrl_unmount_host() // SP CTRL command
 {
-    unsigned char hostSlot = data_buffer[0]; // adamnet_recv();
+    unsigned char hostSlot = data_buffer[0]; 
     Debug_printf("\r\nFuji cmd: UNMOUNT HOST no. %d", hostSlot);
 
     if ((hostSlot < 8) && (hostMounted[hostSlot] == false))
@@ -487,7 +487,7 @@ void iwmFuji::iwm_ctrl_disk_image_mount() // SP CTRL command
 // Toggle boot config on/off, aux1=0 is disabled, aux1=1 is enabled
 void iwmFuji::iwm_ctrl_set_boot_config() // SP CTRL command
 {
-    boot_config = data_buffer[0]; // adamnet_recv();
+    boot_config = data_buffer[0]; 
 
     if (!boot_config) 
     {
@@ -610,7 +610,7 @@ bool iwmFuji::mount_all()
 // Set boot mode
 void iwmFuji::iwm_ctrl_set_boot_mode()
 {
-    uint8_t bm = data_buffer[0]; // adamnet_recv();
+    uint8_t bm = data_buffer[0]; 
     
     insert_boot_device(bm);
     boot_config = true;
@@ -759,7 +759,7 @@ void iwmFuji::iwm_ctrl_open_directory()
     Debug_printf("\r\nFuji cmd: OPEN DIRECTORY");
 
     int idx = 0;
-    uint8_t hostSlot = data_buffer[idx++];// adamnet_recv();
+    uint8_t hostSlot = data_buffer[idx++];
 
     uint16_t s = data_len - 1; // two strings but not the slot number
   
@@ -1219,7 +1219,7 @@ void iwmFuji::iwm_ctrl_set_device_filename()
 {
     char f[MAX_FILENAME_LEN];
     int idx = 0;
-    unsigned char ds = data_buffer[idx++];// adamnet_recv();
+    unsigned char ds = data_buffer[idx++];
     uint16_t s = data_len;
     s--;
    
@@ -1276,7 +1276,7 @@ void iwmFuji::insert_boot_device(uint8_t d)
 
 void iwmFuji::iwm_ctrl_enable_device()
 {
-    unsigned char d = data_buffer[0]; // adamnet_recv();
+    unsigned char d = data_buffer[0]; 
 
     Debug_printf("\nFuji cmd: ENABLE DEVICE");
     IWM.enableDevice(d);
@@ -1284,7 +1284,7 @@ void iwmFuji::iwm_ctrl_enable_device()
 
 void iwmFuji::iwm_ctrl_disable_device()
 {
-    unsigned char d = data_buffer[0]; // adamnet_recv();
+    unsigned char d = data_buffer[0]; 
 
     Debug_printf("\nFuji cmd: DISABLE DEVICE");
     IWM.disableDevice(d);

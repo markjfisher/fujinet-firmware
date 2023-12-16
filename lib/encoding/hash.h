@@ -23,6 +23,7 @@ public:
 
     std::vector<uint8_t> hash_output(uint16_t m, char hash_mode, uint16_t& olen);
     void compute(uint16_t m, const std::string& data);
+    uint8_t length(int mode);
 
 };
 

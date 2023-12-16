@@ -7,8 +7,12 @@
 #include "fnWiFi.h"
 #include "fsFlash.h"
 #include "utils.h"
+#include "../../bus/iwm/iwm.h"
 
 #include <string>
+
+#include "../../encoding/base64.h"
+#include "../../encoding/hash.h"
 
 #define ADDITIONAL_DETAILS_BYTES 12
 #define DIR_MAX_LEN 40
@@ -174,7 +178,7 @@ void iwmFuji::iwm_stat_net_get_wifi_status() // SP Status command
 // Mount Server
 void iwmFuji::iwm_ctrl_mount_host() // SP CTRL command
 {
-    unsigned char hostSlot = data_buffer[0]; // adamnet_recv();
+    unsigned char hostSlot = data_buffer[0]; 
     Debug_printf("\r\nFuji cmd: MOUNT HOST no. %d", hostSlot);
 
     if ((hostSlot < 8) && (hostMounted[hostSlot] == false))
@@ -187,7 +191,7 @@ void iwmFuji::iwm_ctrl_mount_host() // SP CTRL command
 // UnMount Server
 void iwmFuji::iwm_ctrl_unmount_host() // SP CTRL command
 {
-    unsigned char hostSlot = data_buffer[0]; // adamnet_recv();
+    unsigned char hostSlot = data_buffer[0]; 
     Debug_printf("\r\nFuji cmd: UNMOUNT HOST no. %d", hostSlot);
 
     if ((hostSlot < 8) && (hostMounted[hostSlot] == false))
@@ -247,7 +251,7 @@ uint8_t iwmFuji::iwm_ctrl_disk_image_mount() // SP CTRL command
 // Toggle boot config on/off, aux1=0 is disabled, aux1=1 is enabled
 void iwmFuji::iwm_ctrl_set_boot_config() // SP CTRL command
 {
-    boot_config = data_buffer[0]; // adamnet_recv();
+    boot_config = data_buffer[0]; 
 
     if (!boot_config) 
     {
@@ -370,7 +374,7 @@ bool iwmFuji::mount_all()
 // Set boot mode
 void iwmFuji::iwm_ctrl_set_boot_mode()
 {
-    uint8_t bm = data_buffer[0]; // adamnet_recv();
+    uint8_t bm = data_buffer[0]; 
     
     insert_boot_device(bm);
     boot_config = true;
@@ -521,7 +525,7 @@ uint8_t iwmFuji::iwm_ctrl_open_directory()
     uint8_t err_result = SP_ERR_NOERROR;
 
     int idx = 0;
-    uint8_t hostSlot = data_buffer[idx++];// adamnet_recv();
+    uint8_t hostSlot = data_buffer[idx++];
 
     uint16_t s = data_len - 1; // two strings but not the slot number
   
@@ -981,7 +985,7 @@ void iwmFuji::iwm_ctrl_set_device_filename()
 {
     char f[MAX_FILENAME_LEN];
     int idx = 0;
-    unsigned char ds = data_buffer[idx++];// adamnet_recv();
+    unsigned char ds = data_buffer[idx++];
     uint16_t s = data_len;
     s--;
    
@@ -1038,7 +1042,7 @@ void iwmFuji::insert_boot_device(uint8_t d)
 
 void iwmFuji::iwm_ctrl_enable_device()
 {
-    unsigned char d = data_buffer[0]; // adamnet_recv();
+    unsigned char d = data_buffer[0]; 
 
     Debug_printf("\nFuji cmd: ENABLE DEVICE");
     IWM.enableDevice(d);
@@ -1046,7 +1050,7 @@ void iwmFuji::iwm_ctrl_enable_device()
 
 void iwmFuji::iwm_ctrl_disable_device()
 {
-    unsigned char d = data_buffer[0]; // adamnet_recv();
+    unsigned char d = data_buffer[0]; 
 
     Debug_printf("\nFuji cmd: DISABLE DEVICE");
     IWM.disableDevice(d);
@@ -1206,6 +1210,8 @@ void iwmFuji::iwm_status(iwm_decoded_cmd_t cmd)
   Debug_printf("\ntheFuji Device %02x Status Code %02x", id(), status_code);
   // Debug_printf("\r\nStatus List is at %02x %02x", cmd.g7byte1 & 0x7f, cmd.g7byte2 & 0x7f);
 
+  uint8_t err_result = SP_ERR_NOERROR;
+
   switch (status_code)
   {
     case 0xAA:
@@ -1285,12 +1291,35 @@ void iwmFuji::iwm_status(iwm_decoded_cmd_t cmd)
     case FUJICMD_STATUS:                    // 0x53
       // to do? parallel to SP status?
       break;
+
+    case FUJICMD_BASE64_ENCODE_LENGTH:
+        err_result = iwm_stat_base64_encode_length();
+        break;
+    case FUJICMD_BASE64_ENCODE_OUTPUT:
+        err_result = iwm_stat_base64_encode_output();
+        break;
+    case FUJICMD_BASE64_DECODE_LENGTH:
+        err_result = iwm_stat_base64_decode_length();
+        break;
+    case FUJICMD_BASE64_DECODE_OUTPUT:
+        err_result = iwm_stat_base64_decode_output();
+        break;
+    case FUJICMD_HASH_LENGTH:
+        err_result = iwm_stat_hash_length();
+        break;
+    case FUJICMD_HASH_OUTPUT:
+        err_result = iwm_stat_hash_output();
+        break;
+
     default:
       Debug_printf("\nBad Status Code, sending error response");
       send_reply_packet(SP_ERR_BADCTL);
       return;
       break;
   }
+
+  if (err_result != SP_ERR_NOERROR) return;
+
   Debug_printf("\nStatus code complete, sending response");
   IWM.iwm_send_packet(id(), iwm_packet_type_t::data, 0, data_buffer, data_len);
  }
@@ -1321,8 +1350,6 @@ void iwmFuji::iwm_ctrl(iwm_decoded_cmd_t cmd)
       send_reply_packet(err_result); 
       iwm_ctrl_reset_fujinet();
       break;
-
-
       
     // case FUJICMD_GET_SSID:               // 0xFE
     // case FUJICMD_SCAN_NETWORKS:          // 0xFD
@@ -1405,6 +1432,26 @@ void iwmFuji::iwm_ctrl(iwm_decoded_cmd_t cmd)
     case FUJICMD_DISABLE_DEVICE:      // 0xD4
       iwm_ctrl_disable_device();
       break;
+
+    case FUJICMD_BASE64_ENCODE_INPUT:
+        err_result = iwm_ctrl_base64_encode_input();
+        break;
+    case FUJICMD_BASE64_ENCODE_COMPUTE:
+        err_result = iwm_ctrl_base64_encode_compute();
+        break;
+    case FUJICMD_BASE64_DECODE_INPUT:
+        err_result = iwm_ctrl_base64_decode_input();
+        break;
+    case FUJICMD_BASE64_DECODE_COMPUTE:
+        err_result = iwm_ctrl_base64_decode_compute();
+        break;
+    case FUJICMD_HASH_INPUT:
+        err_result = iwm_ctrl_hash_input();
+        break;
+    case FUJICMD_HASH_COMPUTE:
+        err_result = iwm_ctrl_hash_compute();
+        break;
+
     // case FUJICMD_STATUS:              // 0x53
     default: 
       err_result = SP_ERR_BADCTL;
@@ -1472,4 +1519,131 @@ void iwmFuji::handle_ctl_eject(uint8_t spid) {
     theFuji._populate_slots_from_config();    
   }
 }
+
+uint8_t iwmFuji::iwm_ctrl_base64_encode_input()
+{
+    // length in first 2 bytes, data in 3+
+    int len = data_buffer[0] | (data_buffer[1] << 8);
+    base64.base64_buffer.append(reinterpret_cast<const char*>(&data_buffer[2]), len);
+    return SP_ERR_NOERROR;
+}
+
+uint8_t iwmFuji::iwm_ctrl_base64_encode_compute()
+{
+    size_t out_len;
+
+    Debug_printf("FUJI: BASE64 ENCODE COMPUTE\n");
+
+    std::unique_ptr<char[]> p = Base64::encode(base64.base64_buffer.c_str(), base64.base64_buffer.size(), &out_len);
+    if (!p)
+    {
+        Debug_printf("base64_encode compute failed\n");
+        return SP_ERR_IOERROR;
+    }
+
+    base64.base64_buffer.clear();
+    base64.base64_buffer = string(p.get(), out_len);
+
+    Debug_printf("Resulting BASE64 encoded data is: %u bytes\n", out_len);
+    return SP_ERR_NOERROR;
+}
+
+uint8_t iwmFuji::iwm_stat_base64_encode_length()
+{
+    Debug_printf("FUJI: BASE64 ENCODE LENGTH\n");
+
+    size_t len = base64.base64_buffer.length();
+    if (len == 0)
+    {
+        Debug_printf("BASE64 buffer is 0 bytes, sending error.\n");
+        IWM.iwm_send_packet(id(), iwm_packet_type_t::status, SP_ERR_IOERROR, nullptr, 0);
+        return SP_ERR_IOERROR;
+    }
+
+    Debug_printf("base64 buffer length: %u bytes\n", len);
+    data_buffer[0] = len & 0xff;
+    data_buffer[1] = (len << 8) & 0xff;
+    data_len = 2;
+    return SP_ERR_NOERROR;
+}
+
+uint8_t iwmFuji::iwm_stat_base64_encode_output()
+{
+    Debug_printf("FUJI: BASE64 ENCODE OUTPUT\n");
+
+    uint16_t len = data_buffer[0] + (data_buffer[1] << 8);
+
+    if (!len)
+    {
+        Debug_printf("Refusing to send a zero byte buffer. Aborting\n");
+        return SP_ERR_IOERROR;
+    }
+    else if (len > base64.base64_buffer.length())
+    {
+        Debug_printf("Requested %u bytes, but base64_buffer is only %u bytes, aborting.\n", len, base64.base64_buffer.length());
+        IWM.iwm_send_packet(id(), iwm_packet_type_t::status, SP_ERR_IOERROR, nullptr, 0);
+        return SP_ERR_IOERROR;
+    }
+    else if (len > sizeof(data_buffer))
+    {
+        Debug_printf("Requested %u bytes, but data_buffer is only %u bytes, aborting.\n", len, sizeof(data_buffer));
+        IWM.iwm_send_packet(id(), iwm_packet_type_t::status, SP_ERR_IOERROR, nullptr, 0);
+        return SP_ERR_IOERROR;
+    }
+    else
+    {
+        Debug_printf("Requested %u bytes\n", len);
+    }
+
+    std::vector<unsigned char> p(len);
+    std::memcpy(p.data(), base64.base64_buffer.data(), len);
+
+    std::copy(base64.base64_buffer.begin(), base64.base64_buffer.end(), data_buffer);
+
+    base64.base64_buffer.erase(0, len);
+    base64.base64_buffer.shrink_to_fit();
+
+    return SP_ERR_NOERROR;
+}
+
+uint8_t iwmFuji::iwm_ctrl_base64_decode_input()
+{
+    return 0;
+}
+
+uint8_t iwmFuji::iwm_ctrl_base64_decode_compute()
+{
+    return 0;
+}
+
+uint8_t iwmFuji::iwm_stat_base64_decode_length()
+{
+    return 0;
+}
+
+uint8_t iwmFuji::iwm_stat_base64_decode_output()
+{
+    return 0;
+}
+
+uint8_t iwmFuji::iwm_ctrl_hash_input()
+{
+    return 0;
+}
+
+uint8_t iwmFuji::iwm_ctrl_hash_compute()
+{
+    return 0;
+}
+
+uint8_t iwmFuji::iwm_stat_hash_length()
+{
+    return 0;
+}
+
+uint8_t iwmFuji::iwm_stat_hash_output()
+{
+    return 0;
+}
+
 #endif /* BUILD_APPLE */

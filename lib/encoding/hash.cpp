@@ -124,3 +124,25 @@ void Hash::compute(uint16_t m, const std::string& data)
         break;
     }
 }
+
+uint8_t Hash::length(int mode)
+{
+    int r = 0;
+    switch (mode)
+    {
+    case 0: // MD5
+        r = 16;
+        break;
+    case 1: // SHA1
+        r = 20;
+        break;
+    case 2: // SHA256
+        r = 32;
+        break;
+    case 3: // SHA512
+        r = 64;
+        break;
+    }
+    return r;
+
+}

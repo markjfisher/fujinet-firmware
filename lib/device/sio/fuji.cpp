@@ -2006,6 +2006,7 @@ void sioFuji::sio_base64_encode_length()
     {
         Debug_printf("BASE64 buffer is 0 bytes, sending error.\n");
         bus_to_computer(response, sizeof(response), true);
+        return;
     }
 
     Debug_printf("base64 buffer length: %u bytes\n", l);
@@ -2171,28 +2172,8 @@ void sioFuji::sio_hash_compute()
 
 void sioFuji::sio_hash_length()
 {
-    unsigned char r = 0;
-    uint16_t m = sio_get_aux();
-
-    switch (hash_mode)
-    {
-    case 0: // MD5
-        r = 16;
-        break;
-    case 1: // SHA1
-        r = 20;
-        break;
-    case 2: // SHA256
-        r = 32;
-        break;
-    case 3: // SHA512
-        r = 64;
-        break;
-    }
-
-    if (m == 1)  // Hex output
-        m <<= 1; // double it.
-
+    Debug_printf("FUJI: HASH LENGTH\n");
+    uint8_t r = hasher.length(hash_mode);
     bus_to_computer((uint8_t *)&r, 1, false);
 }
 
