@@ -109,6 +109,9 @@ public:
     void send_status_dib_reply_packet() override;
     void send_extended_status_dib_reply_packet() override{};
 
+    void iwm_readblock(iwm_decoded_cmd_t cmd) override;
+    void set_buffer_size(size_t size);
+
     /**
      * @brief Called to set prefix
      */
@@ -257,6 +260,8 @@ private:
      * Timer Rate for interrupt timer
      */
     int timerRate = 100;
+
+    std::vector<uint8_t> buffer_;
 
     /**
      * The channel mode for the currently open iwm device. By default, it is PROTOCOL, which passes

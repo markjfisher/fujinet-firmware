@@ -6,6 +6,7 @@
 
 #include <string>
 #include <map>
+#include <vector>
 
 #include "fn_esp_http_client.h"
 
@@ -48,6 +49,10 @@ private:
 
     int _perform();
     int _perform_stream(esp_http_client_method_t method, uint8_t *write_data, int write_size);
+
+    std::vector<uint8_t> read_block(size_t size);
+    bool has_next(size_t size);
+    std::vector<uint8_t> nextBlock_;
 
 public:
 

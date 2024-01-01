@@ -788,3 +788,39 @@ void fnHttpClient::collect_headers(const char *headerKeys[], const size_t header
     for (int i = 0; i < headerKeysCount; i++)
         _stored_headers.insert(header_entry_t(headerKeys[i], std::string()));
 }
+
+bool fnHttpClient::has_next(size_t size)
+{
+    if (!nextBlock_.empty())
+    {
+        // already have a waiting block to be read.
+        return true;
+    }
+    nextBlock_ = read_block(size);
+    return !nextBlock_.empty();
+}
+
+std::vector<uint8_t> fnHttpClient::read_block(size_t size)
+{
+    if (!nextBlock_.empty())
+    {
+        std::vector<uint8_t> block = std::move(nextBlock_);
+        nextBlock_.clear();
+        return block;
+    }
+
+    std::vector<uint8_t> buffer(size);
+    int bytesRead = esp_http_client_read(_handle, reinterpret_cast<char*>(buffer.data()), size);
+
+    if (bytesRead > 0)
+    {
+        buffer.resize(bytesRead);
+    }
+    else
+    {
+        buffer.clear();
+    }
+
+    return buffer;
+
+}

@@ -861,7 +861,7 @@ void iwmNetwork::process(iwm_decoded_cmd_t cmd)
         iwm_status(cmd);
         break;
     case 0x01: // read block
-        iwm_return_badcmd(cmd);
+        iwm_readblock(cmd);
         break;
     case 0x02: // write block
         iwm_return_badcmd(cmd);
@@ -985,6 +985,48 @@ void iwmNetwork::iwmnet_set_timer_rate()
     //     timer_start();
 
     // iwmnet_complete();
+}
+
+void iwmNetwork::set_buffer_size(size_t size)
+{
+    buffer_.resize(size);
+}
+
+void iwmNetwork::iwm_readblock(iwm_decoded_cmd_t cmd)
+{
+    char *msg;
+    size_t size;
+    bool has_next;
+    // work this like an iterator.
+    // params[2]:  00 = set_length - sets the size of the buffer to use to read the network resource in blocks. Anything up to 64k
+    //             01 = has_next   - return 0 if there are no more blocks to return, 1 if there are more
+    //             02 = next       - fetch the next block of (up to) length in size. first 2 bytes are the length of data in the block
+    // params[3,4]    = length to set if cmd is set_length
+    uint8_t control_code = cmd.params[2];
+    switch (control_code)
+    {
+    case 0:
+        Debug_printf("network readblock: set_length()\r\n");
+        size = cmd.params[3] + 256 * cmd.params[4];
+        set_buffer_size(size);
+        break;
+    case 1:
+        protocol->read(1);
+        has_next = httpClient_.hasNext(buffer_.size());
+        Debug_printf("network readblock: has_next() = %d\r\n", has_next);
+        break;
+    case 2:
+        Debug_printf("network readblock: next()\r\n");
+        buffer_ = httpClient_.readBlock(buffer_.size());
+        msg = util_hexdump(buffer_, 128);
+        Debug_printf(msg);
+        free(msg);
+        break;
+    default:
+        Debug_printf("INVALID NETWORK READBLOCK MODE = %02x\r\n", control_code);
+        break;
+    }
+
 }
 
 #endif /* BUILD_APPLE */
