@@ -155,6 +155,7 @@ set(SOURCES src/main.cpp
     lib/hardware/fnUART.h lib/hardware/fnUART.cpp 
     lib/hardware/fnUARTUnix.cpp lib/hardware/fnUARTWindows.cpp
     lib/hardware/fnSystem.h lib/hardware/fnSystem.cpp lib/hardware/fnSystemNet.cpp
+    lib/hardware/uart.h lib/hardware/uart.cpp
     lib/FileSystem/fnDirCache.h lib/FileSystem/fnDirCache.cpp
     lib/FileSystem/fnFS.h lib/FileSystem/fnFS.cpp
     lib/FileSystem/fnFsSPIFFS.h lib/FileSystem/fnFsSPIFFS.cpp
@@ -322,6 +323,7 @@ if(FUJINET_TARGET STREQUAL "APPLE")
         list(APPEND SOURCES
             lib/bus/iwm/connector_com.h lib/bus/iwm/connector_com.cpp
             lib/devrelay/service/COMConnection.h lib/devrelay/service/COMConnection.cpp
+            lib/hardware/uart_pc.h lib/hardware/uart_pc.cpp
         )
     endif()
 
