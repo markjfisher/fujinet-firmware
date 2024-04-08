@@ -23,7 +23,11 @@
 #ifdef DEBUG
 #ifdef ESP_PLATFORM
     // Use FujiNet debug serial output
+// WHY IS fnUART.h BEING LOADED? JUST FOR fnUartDebug?
+#ifndef USE_NEW_MODEM_IF
     #include "../lib/hardware/fnUART.h"
+#endif /* !USE_NEW_MODEM_IF */
+
     #define Serial fnUartDebug
 
     #define Debug_print(...) fnUartDebug.print( __VA_ARGS__ )

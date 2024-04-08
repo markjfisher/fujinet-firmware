@@ -42,6 +42,7 @@
 // Returns the low byte (LSB) of a uint16 value
 #define LOBYTE_FROM_UINT16(value) ((uint8_t)(value & 0xFF))
 
+void util_up_to_eol(std::string &s);
 void util_string_ltrim(std::string &s);
 void util_string_rtrim(std::string &s);
 void util_string_trim(std::string &s);

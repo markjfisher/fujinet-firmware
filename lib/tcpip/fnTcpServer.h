@@ -31,6 +31,7 @@ class fnTcpServer
 
     bool hasClient();
     fnTcpClient available();
+    std::unique_ptr<fnTcpClient> available_ptr();
 
     void stop();
 

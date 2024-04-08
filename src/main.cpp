@@ -274,11 +274,24 @@ void main_setup(int argc, char *argv[])
 
     SIO.addDevice(ptr, SIO_DEVICEID_PRINTER + fnPrinters.get_port(0)); // P:
 
+#ifdef USE_NEW_MODEM_IF
+    auto sniffer = std::make_unique<ModemSniffer>(ptrfs, Config.get_modem_sniffer_enabled());
+    sioR = modem_if::create_modem<MODEM_TYPE>(std::move(sniffer));
+#else
     sioR = new modem(ptrfs, Config.get_modem_sniffer_enabled()); // Config/User selected sniffer enable
+#endif
+
+#ifndef USE_NEW_MODEM_IF
+
 #ifdef ESP_PLATFORM
     sioR->set_uart(&fnUartBUS);
 #else
     sioR->set_uart(&fnSioCom);
+#endif
+
+#else
+    // the modem_if instance creates its own uart, so this isn't needed here. There is no floating global fnUartBUS in new code.
+    // sioR->set_uart(?);
 #endif
 
     SIO.addDevice(sioR, SIO_DEVICEID_RS232); // R:

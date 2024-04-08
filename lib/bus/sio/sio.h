@@ -1,13 +1,22 @@
 #ifndef SIO_H
 #define SIO_H
 
+#include <memory>
 #include <forward_list>
+
+#ifdef USE_NEW_MODEM_IF
+#include "modem_sio.h"
+#endif
 
 #ifdef ESP_PLATFORM
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #else
+
+#ifndef USE_NEW_MODEM_IF
 #include "sio/siocom/fnSioCom.h"
+#endif
+
 #endif
 
 #define DELAY_T4 850
@@ -108,7 +117,11 @@ union cmdFrame_t
 uint8_t sio_checksum(uint8_t *buf, unsigned short len);
 
 // class def'ns
+#ifdef USE_NEW_MODEM_IF
+class modem_if;       // declare here so can reference it, but define in modem_if.h
+#else
 class modem;          // declare here so can reference it, but define in modem.h
+#endif
 class sioFuji;        // declare here so can reference it, but define in fuji.h
 class systemBus;      // declare early so can be friend
 class sioNetwork;     // declare here so can reference it, but define in network.h
@@ -264,7 +277,12 @@ private:
     int _command_frame_counter = 0;
 
     virtualDevice *_activeDev = nullptr;
+#ifdef USE_NEW_MODEM_IF
+    std::unique_ptr<modem_if> _modemDev = nullptr;
+#else
     modem *_modemDev = nullptr;
+#endif
+
     sioFuji *_fujiDev = nullptr;
     sioNetwork *_netDev[8] = {nullptr};
     sioUDPStream *_udpDev = nullptr;
@@ -322,8 +340,11 @@ public:
     sioPrinter *getPrinter() { return _printerdev; }
     sioCPM *getCPM() { return _cpmDev; }
 
-    // I wish this codebase would make up its mind to use camel or snake casing.
+#ifdef USE_NEW_MODEM_IF
+    modem_if *get_modem() { return _modemDev->get(); }
+#else
     modem *get_modem() { return _modemDev; }
+#endif
 
 #ifdef ESP_PLATFORM
     QueueHandle_t qSioMessages = nullptr;

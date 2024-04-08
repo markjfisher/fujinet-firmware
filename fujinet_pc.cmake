@@ -15,21 +15,21 @@ if(FUJINET_TARGET STREQUAL "ATARI")
     # fujinet.build_board (used by build_webui.py)
     set(FUJINET_BUILD_BOARD fujinet-pc-atari)
     # fujinet.build_bus
-    set(FUJINET_BUILD_BUS SIO)
+    # set(FUJINET_BUILD_BUS SIO)
 elseif(FUJINET_TARGET STREQUAL "APPLE")
     # fujinet.build_platform
     set(FUJINET_BUILD_PLATFORM BUILD_APPLE)
     # fujinet.build_board (used by build_webui.py)
     set(FUJINET_BUILD_BOARD fujinet-pc-apple)
     # fujinet.build_bus
-    set(FUJINET_BUILD_BUS IWM)
+    # set(FUJINET_BUILD_BUS IWM)
 elseif(FUJINET_TARGET STREQUAL "COCO")
     # fujinet.build_platform
     set(FUJINET_BUILD_PLATFORM BUILD_COCO)
     # fujinet.build_board (used by build_webui.py)
     set(FUJINET_BUILD_BOARD fujinet-pc-coco)
     # fujinet.build_bus
-    set(FUJINET_BUILD_BUS IWM)
+    # set(FUJINET_BUILD_BUS IWM)
 else()
     message(FATAL_ERROR "Invalid target: '${FUJINET_TARGET}'. Please choose from 'ATARI', 'APPLE', or 'COCO'.")
 endif()
@@ -117,6 +117,11 @@ if(DEFINED DEBUG_NO_REBOOT)
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG_NO_REBOOT=1")
 endif()
 
+# New modem_if flag until it's fully written
+if(DEFINED USE_NEW_MODEM_IF)
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DUSE_NEW_MODEM_IF=1")
+endif()
+
 set(INCLUDE_DIRS include
     lib/compat lib/config lib/utils lib/hardware
     lib/FileSystem lib/EdUrlParser
@@ -163,6 +168,9 @@ set(SOURCES src/main.cpp
     lib/hardware/fnUART.h lib/hardware/fnUART.cpp 
     lib/hardware/fnUARTUnix.cpp lib/hardware/fnUARTWindows.cpp
     lib/hardware/fnSystem.h lib/hardware/fnSystem.cpp lib/hardware/fnSystemNet.cpp
+    lib/hardware/uart.h lib/hardware/uart.cpp
+    lib/hardware/modem_if.h lib/hardware/modem_if.cpp
+    lib/hardware/telnetEventHandler.h lib/hardware/telnetEventHandler.cpp
     lib/FileSystem/fnDirCache.h lib/FileSystem/fnDirCache.cpp
     lib/FileSystem/fnFS.h lib/FileSystem/fnFS.cpp
     lib/FileSystem/fnFsSPIFFS.h lib/FileSystem/fnFsSPIFFS.cpp
@@ -274,6 +282,8 @@ if(FUJINET_TARGET STREQUAL "ATARI")
     lib/device/sio/siocpm.h lib/device/sio/siocpm.cpp
     lib/device/sio/pclink.h lib/device/sio/pclink.cpp
 
+    lib/modem/modem_sio.h lib/modem/modem_sio.cpp
+
     )
 endif()
 
@@ -330,6 +340,7 @@ if(FUJINET_TARGET STREQUAL "APPLE")
         list(APPEND SOURCES
             lib/bus/iwm/connector_com.h lib/bus/iwm/connector_com.cpp
             lib/devrelay/service/COMConnection.h lib/devrelay/service/COMConnection.cpp
+            lib/hardware/uart_pc.h lib/hardware/uart_pc.cpp
         )
     endif()
 
@@ -356,6 +367,15 @@ if(FUJINET_TARGET STREQUAL "COCO")
     lib/device/drivewire/printerlist.h lib/device/drivewire/printerlist.cpp
 
     )
+endif()
+
+if(DEFINED USE_NEW_MODEM_IF)
+    list(APPEND SOURCES
+
+    lib/hardware/uart_pc.h lib/hardware/uart_pc.cpp
+
+    )
+
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")

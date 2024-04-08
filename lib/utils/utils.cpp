@@ -52,6 +52,18 @@ void util_string_ltrim(std::string &s)
                      { return !std::isspace(ch); }));
 }
 
+// remove anything after (and including) first EOL type char from given string, includes CR/LF or 0x9B for atascii
+void util_up_to_eol(std::string& s)
+{
+    const std::string trimChars = "\r\n\x9B";    
+    size_t endPos = s.find_last_not_of(trimChars);
+    if (endPos == std::string::npos) {
+        s.clear();
+    } else {
+        s.erase(endPos + 1);
+    }    
+}
+
 // trim from end (in place)
 void util_string_rtrim(std::string &s)
 {

@@ -2,8 +2,12 @@
 #define DEVICE_MODEM_H
 
 #ifdef BUILD_ATARI
-# include "../modem/modem.h"
+#ifndef USE_NEW_MODEM_IF
+  #include "../modem/modem.h"
   extern modem *sioR;
+#endif
+#else
+  #include "../modem/modem_sio.h"
 #endif
 
 #ifdef BUILD_RS232

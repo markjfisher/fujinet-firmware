@@ -1,4 +1,6 @@
 #ifdef BUILD_ATARI
+#include <string.h>
+
 #include "modem.h"
 
 #include "../../../include/debug.h"
@@ -121,7 +123,7 @@ void modem::sio_poll_3(uint8_t device, uint8_t aux1, uint8_t aux2)
 {
     bool respond = false;
 
-    // When AUX1 and AUX == 0x4E, it's a normal/general poll
+    // When AUX1 and AUX == 0x00, it's a normal/general poll
     // Since XL/XE OS always does this during boot, we're going to ignore these, otherwise
     // we'd load our handler every time, and that's probably not desireable
     if (aux1 == 0 && aux2 == 0)
@@ -367,24 +369,26 @@ void modem::sio_status()
 
     memset(mdmStatus, 0, sizeof(mdmStatus));
 
-    mdmStatus[1] &= 0b00111111;
-    mdmStatus[1] |= (tcpClient.connected() == true || tcpServer.hasClient() == true ? 192 : 0);
+    bool isConnected = tcpClient.connected();
+    bool isAvailable = tcpClient.available() > 0;
 
-    mdmStatus[1] &= 0b11110011;
-    mdmStatus[1] |= (tcpClient.connected() == true || tcpServer.hasClient() ? 12 : 0);
+    // only check hasClient if absolutely necessary
+    if (!isConnected || !isAvailable || autoAnswer) {
+        bool hasClient = tcpServer.hasClient();
+        isConnected |= hasClient;
+        isAvailable |= hasClient;
 
-    mdmStatus[1] &= 0b11111110;
-    mdmStatus[1] |= ((tcpClient.available() > 0) || (tcpServer.hasClient() == true) ? 1 : 0);
-
-    if (autoAnswer == true && tcpServer.hasClient())
-    {
-        modemActive = true;
-        answered = false;
-        answerTimer = fnSystem.millis();
+        if (autoAnswer && hasClient) {
+            modemActive = true;
+            answered = false;
+            answerTimer = fnSystem.millis();
+        }
     }
 
-    Debug_printf("modem::sio_status(%02x,%02x)\n", mdmStatus[0], mdmStatus[1]);
+    mdmStatus[1] = (isConnected ? 0b11001100 : 0) |
+                   (isAvailable ? 0b00000001 : 0);
 
+    Debug_printf("modem::sio_status(%02x,%02x)\n", mdmStatus[0], mdmStatus[1]);
     bus_to_computer(mdmStatus, sizeof(mdmStatus), false);
 }
 
@@ -1251,47 +1255,47 @@ void modem::modemCommand()
             "ATNET1",
             "ATA",
             "ATIP",
-            "AT?",
+            "AT?",   // 5
             "ATH",
             "+++ATH",
             "ATDT",
             "ATDP",
-            "ATDI",
+            "ATDI",  // 10
             "ATWIFILIST",
             "ATWIFICONNECT",
             "ATGET",
             "ATPORT",
-            "ATV0",
+            "ATV0",  // 15
             "ATV1",
             "AT&F",
             "ATS0=0",
             "ATS0=1",
-            "ATS2=43",
+            "ATS2=43", // 20
             "ATS5=8",
             "ATS6=2",
             "ATS7=30",
             "ATS12=20",
-            "ATE0",
+            "ATE0", // 25
             "ATE1",
             "ATM0",
             "ATM1",
             "ATX1",
-            "AT&C1",
+            "AT&C1", // 30
             "AT&D2",
             "AT&W",
             "ATH2",
             "+++ATZ",
-            "ATS2=128 X1 M0",
+            "ATS2=128 X1 M0", // 35
             "AT+SNIFF",
             "AT-SNIFF",
             "AT+TERM=VT52",
             "AT+TERM=VT100",
-            "AT+TERM=ANSI",
+            "AT+TERM=ANSI", // 40
             "AT+TERM=DUMB",
             "ATCPM",
             "ATPBLIST",
             "ATPBCLEAR",
-            "ATPB",
+            "ATPB",  // 45
             "ATO"};
 
     //cmd.trim();

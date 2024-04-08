@@ -12,7 +12,7 @@
 
 
 // Configures a listening TCP socket on given port
-// Returns 0 for error, 1 for success.
+// Returns success status, i.e. 0 for error, 1 for success.
 int fnTcpServer::begin(uint16_t port)
 {
     if (_listening) {
@@ -143,6 +143,45 @@ fnTcpClient fnTcpServer::available()
     // Return initialized fnTcpClient
     return fnTcpClient();
 }
+
+
+// TODO: this is a copy of available() but returning a managed unique_ptr used in new modem_if class.
+// Remove the above version once everything is using modem_if and rename this to just available()
+std::unique_ptr<fnTcpClient> fnTcpServer::available_ptr()
+{
+    if (!_listening)
+        return std::make_unique<fnTcpClient>();
+
+    // _accecpted_sockfd is set by hasClient() - use it and reset it's value if it hasn't been used
+    int client_sock;
+    if (_accepted_sockfd >= 0)
+    {
+        client_sock = _accepted_sockfd;
+        _accepted_sockfd = -1;
+    }
+    else
+    // Otherwise, try to get a new connection
+    {
+        struct sockaddr_in _client;
+        int cs = sizeof(struct sockaddr_in);
+        client_sock = ::accept(_sockfd, (struct sockaddr *)&_client, (socklen_t *)&cs);
+    }
+
+    // If we have a client, turn on SO_KEEPALIVE and TCP_NODELAY and return new fnTcpClient
+    if (client_sock >= 0)
+    {
+        int val = 1;
+        if (setsockopt(client_sock, SOL_SOCKET, SO_KEEPALIVE, (char *)&val, sizeof(val)) == 0)
+        {
+            val = _noDelay;
+            if (setsockopt(client_sock, IPPROTO_TCP, TCP_NODELAY, (char *)&val, sizeof(val)) == 0)
+                return std::make_unique<fnTcpClient>(client_sock);
+        }
+    }
+
+    return std::make_unique<fnTcpClient>();
+}
+
 
 // Set both send and receive timeouts on the TCP socket
 int fnTcpServer::setTimeout(uint32_t seconds)

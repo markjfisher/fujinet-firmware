@@ -101,47 +101,47 @@ private:
         AT_NET1,
         AT_A,
         AT_IP,
-        AT_HELP,
+        AT_HELP, // 5
         AT_H,
         AT_H1,
         AT_DT,
         AT_DP,
-        AT_DI,
+        AT_DI,  // 10
         AT_WIFILIST,
         AT_WIFICONNECT,
         AT_GET,
         AT_PORT,
-        AT_V0,
+        AT_V0, // 15
         AT_V1,
         AT_ANDF_ignored,
         AT_S0E0,
         AT_S0E1,
-        AT_S2E43_ignored,
+        AT_S2E43_ignored, // 20
         AT_S5E8_ignored,
         AT_S6E2_ignored,
         AT_S7E30_ignored,
         AT_S12E20_ignored,
-        AT_E0,
+        AT_E0,  // 25
         AT_E1,
         AT_M0_ignored,
         AT_M1_ignored,
         AT_X1_ignored,
-        AT_AC1_ignored,
+        AT_AC1_ignored, // 30
         AT_AD2_ignored,
         AT_AW_ignored,
         AT_OFFHOOK,
         AT_ZPPP_ignored,
-        AT_BBSX_ignored,
+        AT_BBSX_ignored, // 35
         AT_SNIFF,
         AT_UNSNIFF,
         AT_TERMVT52,
         AT_TERMVT100,
-        AT_TERMDUMB,
+        AT_TERMDUMB, // 40
         AT_TERMANSI,
         AT_CPM,
         AT_PHONEBOOKLIST,
         AT_PHONEBOOKCLR,
-        AT_PHONEBOOK,
+        AT_PHONEBOOK, // 45
         AT_O,
         AT_ENUMCOUNT};
 
