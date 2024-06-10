@@ -14,20 +14,32 @@
 #define PINROMDATA  0
 #define RWPIN      24
 //      CLKPIN     25 - defined in cococart.pio
-//		CTSPIN	   26 - defined in cococart.pio	
+//		  CTSPIN	   26 - defined in cococart.pio	
 #define ADDRWIDTH  16 // 64k address space
 // #define ROMWIDTH   14 // 16k cart rom space
 // #define DATAWIDTH   8
 
 #include "cococart.pio.h"
 
-
-
 PIO pioblk_ro = pio0;
-#define SM_WRITE 0
+#define SM_ADDR 0
+#define SM_READ 1
 
+/**
+ * put the output SM's in PIO1: data write and rom emulator
+ *
+ * from Section 3.5.6.1 in RP2040 datasheet:
+ * For each GPIO, PIO collates the writes from all four state machines,
+ * and applies the write from the __highest-numbered__ state machine.
+ * This occurs separately for output levels and output values —
+ * it is possible for a state machine to change both the level and
+ * direction of the same pin on the same cycle (e.g. via simultaneous
+ * SET and side-set), or for one state  machine to change a GPIO’s
+ * direction while another changes that GPIO’s level.
+ */
 PIO pioblk_rw = pio1;
-#define SM_ROM 0
+#define SM_ROM 3
+#define SM_WRITE 0
 
 void setup_rom_emulator()
 {
@@ -51,7 +63,7 @@ void setup_rom_emulator()
  
     channel_config_set_read_increment(&cfg_rom_data,false);
     channel_config_set_write_increment(&cfg_rom_data,false);
-    channel_config_set_dreq(&cfg_rom_data, pio_get_dreq(pioblk_rw, SM_ROM, true)); // mux PIO
+    channel_config_set_dreq(&cfg_rom_data, pio_get_dreq(pioblk_rw, SM_ROM, true)); // ROM PIO
     channel_config_set_chain_to(&cfg_rom_data, chan_rom_addr);
     channel_config_set_transfer_data_size(&cfg_rom_data, DMA_SIZE_8);
     channel_config_set_irq_quiet(&cfg_rom_data, true);
@@ -67,7 +79,7 @@ void setup_rom_emulator()
 
     channel_config_set_read_increment(&cfg_rom_addr,false);
     channel_config_set_write_increment(&cfg_rom_addr,false);
-    channel_config_set_dreq(&cfg_rom_addr, pio_get_dreq(pioblk_rw, SM_ROM, false)); // mux PIO
+    channel_config_set_dreq(&cfg_rom_addr, pio_get_dreq(pioblk_rw, SM_ROM, false)); // ROM PIO
     channel_config_set_chain_to(&cfg_rom_addr, chan_rom_data);
     channel_config_set_transfer_data_size(&cfg_rom_addr, DMA_SIZE_32);
     channel_config_set_irq_quiet(&cfg_rom_addr, true);
@@ -78,20 +90,19 @@ void setup_rom_emulator()
         &dma_channel_hw_addr(chan_rom_data)->read_addr,   // The initial write address
         &pioblk_rw->rxf[SM_ROM],            // The initial read address
         1,                                  // Number of transfers; in this case each is 1 byte.
-        true                               // do not Start immediately.      
+        true                               // do Start immediately.      
       );
 }
 
 
 void initio()
 {
-  const uint32_t addrmask = 0x1fff << PINROMADDR;
+  const uint32_t addrmask = 0xffff << PINROMADDR;
   const uint32_t datamask = 0xff << PINROMDATA;
-  const uint32_t enablemask = 1 << CTSPIN;
-  uint32_t allpins, addr, bank = 0;
-
-  gpio_init(CLKPIN);
-  gpio_init_mask(addrmask | datamask | enablemask);
+  const uint32_t ctrlmask = (1 << CLKPIN) | (1 << CTSPIN) | (1 << RWPIN);
+  
+  // gpio_init(CLKPIN);
+  gpio_init_mask(addrmask | datamask | ctrlmask);
   gpio_set_dir_all_bits(0);
 
   for (int i = 0; i < DATAWIDTH; i++)
@@ -101,39 +112,107 @@ void initio()
     gpio_disable_pulls(PINROMADDR + i);
 
   gpio_set_pulls(CTSPIN, true, false);
+  gpio_disable_pulls(CLKPIN);
+  gpio_disable_pulls(RWPIN);
+  gpio_set_pulls(BUGPIN, false, true);
+}
 
+/* 
 
+  Becker port   http://www.davebiz.com/wiki/CoCo3FPGA#Becker_port
+  
+  The "Becker" port is a simple interface used in the CoCo3FPGA project 
+  (and some CoCo emulators) to allow high speed I/O between the CoCo3FPGA 
+  and the DriveWire server. The interface uses 2 addresses, one for status 
+  and one for the actual I/O. 
+  
+  The read status port is &HFF41 
+  The only bit used out of bit 0 to bit 7 is bit #1 
+  If there is data to read then bit #1 will be set to 1 
+  
+  The read/write port is &HFF42 
+  When reading you must make sure you only read when data is present by the status bit. 
+  As far as writing you just write the data to the port. 
+*/ 
 
+void setup_becker_port()
+{
+  // install the PIO that captures CoCo access to $FFxx
+	uint offset = pio_add_program(pioblk_ro, &cocoaddr_program);
+	printf("cocoaddr PIO installed at %d\n", offset);
+	cocoaddr_program_init(pioblk_ro, SM_ADDR, offset);
+	pio_sm_set_enabled(pioblk_ro, SM_ADDR, true);
 
+  // install PIO that reads from the CoCo data bus
+  offset = pio_add_program(pioblk_ro, &dataread_program);
+  printf("dataread PIO installed at %d\n", offset);
+  dataread_program_init(pioblk_ro, SM_READ, offset);
+	// pio_sm_set_enabled(pioblk_ro, SM_READ, true);
+
+  // install PIO that writes to the CoCo data bus
+  offset = pio_add_program(pioblk_rw, &datawrite_program);
+  printf("datawrite PIO installed at %d\n", offset);
+  datawrite_program_init(pioblk_rw, SM_WRITE, offset);
+  // pio_sm_set_enabled(pioblk_rw, SM_WRITE, true);
+}
+
+void __time_critical_func(cococart)()
+{
+  // need PIO to read byte - cocowrite reads bytes from 0xFFxx
+  // need PIO to write byte - cocoread writes a byte to the data bus ... should decode 0xFFxx, too.
+  //
+  // loop should check for FIFO data in read and write byte PIOs
+  // when there's FIFO data, check the address, then either read or write
+  //
+  // need a ring buffer for the output data. set the status flag value based on head and tail pointers == or !=
+
+	while (true)
+	{
+		uint32_t addr = pio_sm_get_blocking(pioblk_ro, SM_ADDR);
+				// printf("read %02x\n", addr);
+
+		if (gpio_get(RWPIN)) // coco MC6809 is in read mode
+			switch (addr)
+			{
+			case 0x41:
+				printf("read %02x\n", addr);
+				break;
+			case 0x42:
+				printf("read %02x\n", addr);
+				break;
+			default:
+				break;
+			}
+	  else          // coco MC6809 is in write mode
+		  switch (addr)
+		  {
+		  case 0x42:
+			  printf("write %02x\n", addr);
+			  break;
+		  default:
+			  break;
+      }
+       
+	}
 }
 
 int main()
 {
-	// multicore_launch_core1(cococart); // launch the Cart ROM emulator
-	stdio_init_all(); // enable USB serial I/O as specified in cmakelists
+	
+  multicore_launch_core1(cococart); // launch the Cart ROM emulator
+	
+  stdio_init_all(); // enable USB serial I/O as specified in cmakelists
 	initio();
 	busy_wait_ms(2000); // wait for minicom to connect so I can see message
 	printf("\nwelcome to cococart\n");
 
-	setup_rom_emulator();
-
-	// install the PIO that captures CoCo writes to $FFxx
-	uint offset = pio_add_program(pioblk_ro, &cocowrite_program);
-	printf("cocowrite PIO installed at %d\n", offset);
-	cocowrite_program_init(pioblk_ro, SM_WRITE, offset);
-	pio_sm_set_enabled(pioblk_ro, SM_WRITE, true);
+	// setup_rom_emulator();
+  setup_becker_port();
 
 	// handle output from the CoCoWrite PIO
 	while (true)
 	{
-		uint32_t w = pio_sm_get_blocking(pio0, 0);
-		// w - A0-A7 , D0-D7, ctrl, A8-A15
-		uint8_t addr = (w >> 24) & 0xFF;
-		if (addr == 0x50)
-		{
-			uint8_t data = (w >> 16) & 0xFF;
-			printf("%03d from %02x\n", data, addr);
-		}
+
 	}
 
 }
