@@ -101,7 +101,6 @@ void initio()
   const uint32_t datamask = 0xff << PINROMDATA;
   const uint32_t ctrlmask = (1 << CLKPIN) | (1 << CTSPIN) | (1 << RWPIN);
   
-  // gpio_init(CLKPIN);
   gpio_init_mask(addrmask | datamask | ctrlmask);
   gpio_set_dir_all_bits(0);
 
@@ -114,7 +113,8 @@ void initio()
   gpio_set_pulls(CTSPIN, true, false);
   gpio_disable_pulls(CLKPIN);
   gpio_disable_pulls(RWPIN);
-  gpio_set_pulls(BUGPIN, false, true);
+  // gpio_set_pulls(BUGPIN, false, true);
+
 }
 
 /* 
@@ -147,7 +147,7 @@ void setup_becker_port()
   offset = pio_add_program(pioblk_ro, &dataread_program);
   printf("dataread PIO installed at %d\n", offset);
   dataread_program_init(pioblk_ro, SM_READ, offset);
-	// pio_sm_set_enabled(pioblk_ro, SM_READ, true);
+	pio_sm_set_enabled(pioblk_ro, SM_READ, true);
 
   // install PIO that writes to the CoCo data bus
   offset = pio_add_program(pioblk_rw, &datawrite_program);
@@ -176,6 +176,8 @@ void __time_critical_func(cococart)()
 			{
 			case 0x41:
 				printf("read %02x\n", addr);
+       // return a byte ...
+
 				break;
 			case 0x42:
 				printf("read %02x\n", addr);
@@ -187,7 +189,12 @@ void __time_critical_func(cococart)()
 		  switch (addr)
 		  {
 		  case 0x42:
-			  printf("write %02x\n", addr);
+			  // get the byte
+			  {
+				  pio_sm_put(pioblk_ro, SM_READ, 0);
+				  uint32_t b = pio_sm_get_blocking(pioblk_ro, SM_READ);
+				  printf("write %02x = %03d\n", addr, b);
+			  }
 			  break;
 		  default:
 			  break;

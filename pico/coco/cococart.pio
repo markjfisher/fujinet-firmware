@@ -9,9 +9,10 @@
 .define public CLKPIN     25
 ; .define public RWPIN      24
 .define public CTSPIN     26
-.define public BUGPIN     27
 .define public ROMWIDTH   14
 .define public DATAWIDTH   8
+
+;.define public BUGPIN     27
 
 ;
 ;
@@ -57,9 +58,10 @@ void cocoaddr_program_init(PIO pio, uint sm, uint offset) {
 
 .program dataread
 .wrap_target
-    wait 1 gpio CLKPIN          ; wait for rising edge of E
-    in pins 8
-    wait 0 gpio CLKPIN          ; wait for next cycle
+    pull                        ; wait to get triggered
+    ;wait 1 gpio CLKPIN          ; wait for rising edge of E - not needed because will only trigger when CLK is high
+    wait 0 gpio CLKPIN          ; wait for next cycle - DATA is valid on falling edge of CLK
+    in pins 8                   ; get the data and push to the FIFO
 .wrap
 
 % c-sdk {
