@@ -153,7 +153,7 @@ void setup_becker_port()
   offset = pio_add_program(pioblk_rw, &datawrite_program);
   printf("datawrite PIO installed at %d\n", offset);
   datawrite_program_init(pioblk_rw, SM_WRITE, offset);
-  // pio_sm_set_enabled(pioblk_rw, SM_WRITE, true);
+  pio_sm_set_enabled(pioblk_rw, SM_WRITE, true);
 }
 
 void __time_critical_func(cococart)()
@@ -170,14 +170,13 @@ void __time_critical_func(cococart)()
 	{
 		uint32_t addr = pio_sm_get_blocking(pioblk_ro, SM_ADDR);
 				// printf("read %02x\n", addr);
-
 		if (gpio_get(RWPIN)) // coco MC6809 is in read mode
 			switch (addr)
 			{
 			case 0x41:
+				// return a byte ...
+				pio_sm_put(pioblk_rw, SM_WRITE, 0);
 				printf("read %02x\n", addr);
-       // return a byte ...
-
 				break;
 			case 0x42:
 				printf("read %02x\n", addr);
@@ -213,8 +212,8 @@ int main()
 	busy_wait_ms(2000); // wait for minicom to connect so I can see message
 	printf("\nwelcome to cococart\n");
 
-	// setup_rom_emulator();
   setup_becker_port();
+	setup_rom_emulator();
 
 	// handle output from the CoCoWrite PIO
 	while (true)

@@ -81,12 +81,13 @@ void dataread_program_init(PIO pio, uint sm, uint offset) {
 ;
 
 .program datawrite
-.side_set 3 pindirs
+.side_set 3 opt pindirs
 .wrap_target
-    out pins, DATAWIDTH side 0b000      ; output the rom bit value - stalls when no fifo data
-    wait 1 gpio CLKPIN  side 0b000      ; on the clock rising edge
+    out pins, DATAWIDTH                 ; output the rom bit value - stalls when no fifo data
+    wait 1 gpio CLKPIN                  ; on the clock rising edge
     set pindirs 0b11111 side 0b111      ; turn on data output
-    wait 0 gpio CLKPIN  side 0b111  [3] ; on clock falling edge wait data hold time 
+    wait 0 gpio CLKPIN              [1] ; on clock falling edge wait data hold time 
+    nop                             [1] ; complete data hold time
     set pindirs 0b00000 side 0b000      ; turn off data output
 .wrap
 
@@ -102,9 +103,12 @@ void datawrite_program_init(PIO pio, uint sm, uint offset) {
 
     // already set up in rom emulator
     // set out_pin as a GPIO output connected to this SM
-    // for (int i = 0; i < DATAWIDTH; i++)
-	//     pio_gpio_init(pio, PINROMDATA + i);
-    // pio_sm_set_consecutive_pindirs(pio, sm, PINROMDATA, DATAWIDTH, false);
+/*  
+    for (int i = 0; i < DATAWIDTH; i++)
+	    pio_gpio_init(pio, PINROMDATA + i);
+    pio_sm_set_consecutive_pindirs(pio, sm, PINROMDATA, DATAWIDTH, false); 
+*/
+
     pio_sm_init(pio, sm, offset, &c);
 }
 %}
@@ -193,7 +197,7 @@ void cocowrite_program_init(PIO pio, uint sm, uint offset) {
     mov osr, ~null             ; enable the outputs
     out pindirs, DATAWIDTH
 ; note: can save 3 PIO instructions by using a set with sideset to switch the 8-bit databus pindirs
-; however, that's a maximum of 8 bits. For larger, use the "mov osr, null; out pindirs" stucture
+; however, that''s a maximum of 8 bits. For larger, use the "mov osr, null; out pindirs" stucture
 
 
 % c-sdk {
