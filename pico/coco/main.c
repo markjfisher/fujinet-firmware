@@ -156,30 +156,47 @@ void setup_becker_port()
   pio_sm_set_enabled(pioblk_rw, SM_WRITE, true);
 }
 
+static bool becker_data_available = false;
+uint8_t becker_get_status()
+{
+  return becker_data_available ? 0b01 : 0;
+}
+
+static void becker_set_status(bool s)
+{
+  becker_data_available = s;
+}
+
+static uint8_t becker_get_char()
+{
+  return 0;
+}
+
+static uint8_t becker_put_char(uint8_t c)
+{
+  return 0;
+}
+
 void __time_critical_func(cococart)()
 {
-  // need PIO to read byte - cocowrite reads bytes from 0xFFxx
-  // need PIO to write byte - cocoread writes a byte to the data bus ... should decode 0xFFxx, too.
-  //
-  // loop should check for FIFO data in read and write byte PIOs
-  // when there's FIFO data, check the address, then either read or write
-  //
   // need a ring buffer for the output data. set the status flag value based on head and tail pointers == or !=
 
 	while (true)
 	{
+
 		uint32_t addr = pio_sm_get_blocking(pioblk_ro, SM_ADDR);
-				// printf("read %02x\n", addr);
+
 		if (gpio_get(RWPIN)) // coco MC6809 is in read mode
 			switch (addr)
 			{
 			case 0x41:
 				// return a byte ...
-				pio_sm_put(pioblk_rw, SM_WRITE, 0);
-				printf("read %02x\n", addr);
+				pio_sm_put(pioblk_rw, SM_WRITE, becker_get_status());
+				// printf("read %02x\n", addr);
 				break;
 			case 0x42:
-				printf("read %02x\n", addr);
+        pio_sm_put(pioblk_rw, SM_WRITE, becker_get_char());
+				// printf("read %02x\n", addr);
 				break;
 			default:
 				break;
@@ -198,7 +215,6 @@ void __time_critical_func(cococart)()
 		  default:
 			  break;
       }
-       
 	}
 }
 
@@ -215,7 +231,7 @@ int main()
   setup_becker_port();
 	setup_rom_emulator();
 
-	// handle output from the CoCoWrite PIO
+	// talk to serial fujinet
 	while (true)
 	{
 
@@ -223,7 +239,7 @@ int main()
 
 }
 
-// don't want to lose this thought in case it's needed later:
+// OBE but don't want to lose this thought in case it's needed later:
 	// multicore using queue - old method
 
 	// queue_entry_t CoCoIO;
