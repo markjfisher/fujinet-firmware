@@ -45,6 +45,7 @@ PIO pioblk_rw = pio1;
 #define SM_WRITE 2
 #define SM_UART_TX 0
 
+uint8_t ccc, fff;
 
 #define SERIAL_BAUD 38400
 #define PIO_RX_PIN 28 //A2
@@ -178,22 +179,23 @@ void setup_becker_port()
 }
 
 static bool becker_data_available = false;
-uint8_t becker_get_status()
+static inline uint8_t becker_get_status()
 {
-  return becker_data_available ? 0b01 : 0;
+  return becker_data_available ? 0b10 : 0;
 }
 
-static void becker_set_status(bool s)
+static inline void becker_set_status(bool s)
 {
   becker_data_available = s;
 }
 
-static uint8_t becker_get_char()
+static inline uint8_t becker_get_char()
 {
-  return 0;
+  becker_set_status(false);
+  return ccc;
 }
 
-static uint8_t becker_put_char(uint8_t c)
+static inline uint8_t becker_put_char(uint8_t c)
 {
   uart_tx_program_putc(pioblk_rw, SM_UART_TX, c);
 }
@@ -257,7 +259,12 @@ int main()
 	// talk to serial fujinet
 	while (true)
 	{
-
+		if (becker_get_status() == 0)
+		{
+			ccc = uart_rx_program_getc(pioblk_ro, SM_UART_RX);
+			becker_set_status(true);
+      printf("%c",ccc);
+	  }
 	}
 
 }
