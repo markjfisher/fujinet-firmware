@@ -1,5 +1,5 @@
 /* FujiNet Hardware Pin Mapping */
-#ifdef PINMAP_COCO_APPLE
+#ifdef PINMAP_COCO_CART
 
 /* SD Card - fnFsSD.cpp */
 #define PIN_CARD_DETECT         GPIO_NUM_12 // fnSystem.h
@@ -12,10 +12,10 @@
 /* UART - fnuart.cpp */
 #define PIN_UART0_RX            GPIO_NUM_3  // USB Serial
 #define PIN_UART0_TX            GPIO_NUM_1  // USB Serial
-#define PIN_UART1_RX            GPIO_NUM_32 // RS232 HDSEL
+#define PIN_UART1_RX            GPIO_NUM_13 // RS232 HDSEL
 #define PIN_UART1_TX            GPIO_NUM_21 // RS232 DRV2
-#define PIN_UART2_RX          GPIO_NUM_33
-#define PIN_UART2_TX          GPIO_NUM_26
+#define PIN_UART2_RX          GPIO_NUM_13
+#define PIN_UART2_TX          GPIO_NUM_21
 
 /* Buttons - keys.cpp */
 #define PIN_BUTTON_A            GPIO_NUM_0  // Button 0 on DEVKITC-VE

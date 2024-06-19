@@ -20,10 +20,13 @@
 // #define DATAWIDTH   8
 
 #include "cococart.pio.h"
+#include "uart_rx.pio.h"
+#include "uart_tx.pio.h"
 
 PIO pioblk_ro = pio0;
 #define SM_ADDR 0
 #define SM_READ 1
+#define SM_UART_RX 2
 
 /**
  * put the output SM's in PIO1: data write and rom emulator
@@ -39,7 +42,25 @@ PIO pioblk_ro = pio0;
  */
 PIO pioblk_rw = pio1;
 #define SM_ROM 3
-#define SM_WRITE 0
+#define SM_WRITE 2
+#define SM_UART_TX 0
+
+
+#define SERIAL_BAUD 38400
+#define PIO_RX_PIN 28 //A2
+#define PIO_TX_PIN 29 //A3
+void setup_pio_uart()
+{
+  int offset = pio_add_program(pioblk_ro, &uart_rx_program);
+  uart_rx_program_init(pioblk_ro, SM_UART_RX, offset, PIO_RX_PIN, SERIAL_BAUD);
+  printf("uart RX PIO installed at %d\n", offset);
+  pio_sm_set_enabled(pioblk_ro, SM_UART_RX, true);
+
+  offset = pio_add_program(pioblk_rw, &uart_tx_program);
+  uart_tx_program_init(pioblk_rw, SM_UART_TX, offset, PIO_TX_PIN, SERIAL_BAUD);
+  printf("uart TX PIO installed at %d\n", offset);
+  pio_sm_set_enabled(pioblk_rw, SM_UART_TX, true);
+}
 
 void setup_rom_emulator()
 {
@@ -174,7 +195,7 @@ static uint8_t becker_get_char()
 
 static uint8_t becker_put_char(uint8_t c)
 {
-  return 0;
+  uart_tx_program_putc(pioblk_rw, SM_UART_TX, c);
 }
 
 void __time_critical_func(cococart)()
@@ -209,7 +230,8 @@ void __time_critical_func(cococart)()
 			  {
 				  pio_sm_put(pioblk_ro, SM_READ, 0);
 				  uint32_t b = pio_sm_get_blocking(pioblk_ro, SM_READ);
-				  printf("write %02x = %03d\n", addr, b);
+				  becker_put_char(b);
+          printf("write %02x = %03d\n", addr, b);
 			  }
 			  break;
 		  default:
@@ -228,6 +250,7 @@ int main()
 	busy_wait_ms(2000); // wait for minicom to connect so I can see message
 	printf("\nwelcome to cococart\n");
 
+  setup_pio_uart();
   setup_becker_port();
 	setup_rom_emulator();
 
