@@ -233,7 +233,7 @@ void __time_critical_func(cococart)()
 				  pio_sm_put(pioblk_ro, SM_READ, 0);
 				  uint32_t b = pio_sm_get_blocking(pioblk_ro, SM_READ);
 				  becker_put_char(b);
-          printf("write %02x = %03d\n", addr, b);
+          // printf("write %02x = %03d\n", addr, b);
 			  }
 			  break;
 		  default:
@@ -263,7 +263,7 @@ int main()
 		{
 			ccc = uart_rx_program_getc(pioblk_ro, SM_UART_RX);
 			becker_set_status(true);
-      printf("%c",ccc);
+      printf("%02x",ccc);
 	  }
 	}
 
