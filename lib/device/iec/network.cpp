@@ -231,7 +231,7 @@ void iecNetwork::iec_reopen_load()
         // Do another status
         channel_data.protocol->status(&ns);
 
-        if ((!ns.connected) || ns.error == 136) // EOF
+        if ((!ns.connected) || ns.error == NETWORK_ERROR_END_OF_FILE)
             eoi = true;
 
         IEC.sendBytes(channel_data.receiveBuffer, true);

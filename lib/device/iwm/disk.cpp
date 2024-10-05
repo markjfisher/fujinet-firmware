@@ -243,13 +243,11 @@ void iwmDisk::process(iwm_decoded_cmd_t cmd)
   switch (cmd.command)
   {
   case SP_CMD_STATUS:
-    Debug_printf("\r\nhandling status command");
+    Debug_printf("\r\nhandling status command\r\n");
     status_code = get_status_code(cmd); // (cmd.g7byte3 & 0x7f) | ((cmd.grp7msb << 3) & 0x00); // status codes 00-FF
     // max regular status code is 0x05 to UniDisk
     if (disk_num == '0' && status_code > 0x05) {
-      // THIS IS AN OLD HACK FOR CALLING STATUS ON THE FUJI DEVICE INSTEAD OF ADDING THE_FUJI AS A DEVICE.
-      Debug_printf("\r\nUsing DISK_0 for FUJI device\r\n");
-      theFuji.FujiStatus(cmd);
+      Debug_printv("ERROR: DISK_0 no longer supports FUJI commands, please check for an updated version of the application you are running");
     }
     else {
       iwm_status(cmd);
@@ -267,12 +265,11 @@ void iwmDisk::process(iwm_decoded_cmd_t cmd)
     iwm_return_noerror();
     break;
   case SP_CMD_CONTROL:
+    Debug_printf("\r\nhandling control command\r\n");
     status_code = get_status_code(cmd); // (cmd.g7byte3 & 0x7f) | ((cmd.grp7msb << 3) & 0x80); // status codes 00-FF
     // max regular control code is 0x0A to 3.5" disk
     if (disk_num == '0' && status_code > 0x0A) {
-      // THIS IS AN OLD HACK FOR CALLING CONTROL ON THE FUJI DEVICE INSTEAD OF ADDING THE_FUJI AS A DEVICE.
-      Debug_printf("\r\nUsing DISK_0 for FUJI device\r\n");
-      theFuji.FujiControl(cmd);
+      Debug_printv("ERROR: DISK_0 no longer supports FUJI commands, please check for an updated version of the application you are running");
     }
     else {
       iwm_ctrl(cmd);

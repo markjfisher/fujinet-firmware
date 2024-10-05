@@ -216,7 +216,7 @@ void NetworkProtocolTCP::status_client(NetworkStatus *status)
 {
     status->rxBytesWaiting = (client.available() > 65535) ? 65535 : client.available();
     status->connected = client.connected();
-    status->error = client.connected() ? error : 136;
+    status->error = client.connected() ? error : NETWORK_ERROR_END_OF_FILE;
 }
 
 void NetworkProtocolTCP::status_server(NetworkStatus *status)

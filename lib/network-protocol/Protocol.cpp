@@ -185,6 +185,7 @@ bool NetworkProtocol::status(NetworkStatus *status)
         read(status->rxBytesWaiting);
 
     status->rxBytesWaiting = receiveBuffer->length();
+    status->error = NETWORK_ERROR_SUCCESS;
 
     return false;
 }

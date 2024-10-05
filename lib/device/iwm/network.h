@@ -196,7 +196,7 @@ private:
     // ProtocolParser *protocolParser = nullptr;
 
     /**
-     * Error number when there's an ... error!
+     * Error number. This is not the same as NetworkStatus.error. The value must be 0 for success on a ctrl command. It is the device specific error
      */
     uint8_t err = 0; 
 

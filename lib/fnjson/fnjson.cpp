@@ -15,6 +15,7 @@
 #include "string_utils.h"
 #include "../../include/debug.h"
 #include "../utils/utils.h"
+#include "../network-protocol/status_error_codes.h"
 
 /**
  * ctor
@@ -363,6 +364,6 @@ bool FNJSON::status(NetworkStatus *s)
     // Debug_printf("FNJSON::status(%u) %s\r\n", json_bytes_remaining, getValue(_item).c_str());
     s->connected = true;
     s->rxBytesWaiting = json_bytes_remaining;
-    s->error = json_bytes_remaining == 0 ? 136 : 0;
+    s->error = json_bytes_remaining > 0 ? NETWORK_ERROR_SUCCESS : NETWORK_ERROR_END_OF_FILE;
     return false;
 }

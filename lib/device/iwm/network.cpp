@@ -495,23 +495,25 @@ void iwmNetwork::status()
     auto& current_network_data = network_data_map[current_network_unit];
     NetworkStatus s;
 
+    // err is checked in iwm_ctrl to see if it is NON-ZERO, which indicates some kind of error, thus it must be exactly 0 when a successful command is processed.
+    // So it is NOT the same as the status.error value
     switch (current_network_data.channelMode)
     {
     case NetworkData::PROTOCOL:
         if (!current_network_data.protocol) {
             Debug_printf("ERROR: Calling status on a null protocol.\r\n");
-            err = NETWORK_ERROR_INVALID_COMMAND;
+            err = SP_ERR_BADCMD;
             s.error = NETWORK_ERROR_INVALID_COMMAND;
         } else {
-            err = current_network_data.protocol->status(&s);
+            err = (current_network_data.protocol->status(&s) == false) ? 0 : SP_ERR_IOERROR;
         }
         break;
     case NetworkData::JSON:
-        err = (current_network_data.json->status(&s) == false) ? 0 : NETWORK_ERROR_GENERAL;
+        err = (current_network_data.json->status(&s) == false) ? 0 : SP_ERR_IOERROR;
         break;
     }
 
-    Debug_printf("Bytes Waiting: 0x%02x, Connected: %u, Error: %u\n", s.rxBytesWaiting, s.connected, s.error);
+    Debug_printf("Bytes Waiting: 0x%04x, Connected: %u, Error: %u\n", s.rxBytesWaiting, s.connected, s.error);
 
     if (s.rxBytesWaiting > 512)
         s.rxBytesWaiting = 512;
@@ -573,7 +575,7 @@ void iwmNetwork::net_read()
 bool iwmNetwork::read_channel_json(unsigned short num_bytes, iwm_decoded_cmd_t cmd)
 {
     auto& current_network_data = network_data_map[current_network_unit];
-    Debug_printf("read_channel_json - num_bytes: %02x, json_bytes_remaining: %02x\n", num_bytes, current_network_data.json->json_bytes_remaining);
+    Debug_printf("read_channel_json - num_bytes: %04x, json_bytes_remaining: %04x\n", num_bytes, current_network_data.json->json_bytes_remaining);
     if (current_network_data.json->json_bytes_remaining == 0) // if no bytes, we just return with no data
     {
         data_len = 0;
@@ -584,7 +586,7 @@ bool iwmNetwork::read_channel_json(unsigned short num_bytes, iwm_decoded_cmd_t c
         current_network_data.json->readValue(data_buffer, data_len);
         current_network_data.json->json_bytes_remaining -= data_len;
 
-        // Debug_printf("read_channel_json(1) - data_len: %02x, json_bytes_remaining: %02x\n", data_len, current_network_data.json->json_bytes_remaining);
+        // Debug_printf("read_channel_json(1) - data_len: %04x, json_bytes_remaining: %04x\n", data_len, current_network_data.json->json_bytes_remaining);
         // int print_len = data_len;
         // if (print_len > 16) print_len = 16;
         //std::string msg = util_hexdump(data_buffer, print_len);
@@ -600,7 +602,7 @@ bool iwmNetwork::read_channel_json(unsigned short num_bytes, iwm_decoded_cmd_t c
         current_network_data.json->readValue(data_buffer, num_bytes);
         data_len = current_network_data.json->readValueLen();
 
-        // Debug_printf("read_channel_json(2) - data_len: %02x, json_bytes_remaining: %02x\n", num_bytes, current_network_data.json->json_bytes_remaining);
+        // Debug_printf("read_channel_json(2) - data_len: %04x, json_bytes_remaining: %04x\n", num_bytes, current_network_data.json->json_bytes_remaining);
         // int print_len = num_bytes;
         // if (print_len > 16) print_len = 16;
         //std::string msg = util_hexdump(data_buffer, print_len);
