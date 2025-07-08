@@ -17,6 +17,11 @@
 
 #include "fnSystem.h"
 #include "utils.h"
+#include "led.h"
+
+// Include SIO definitions and global SIO object
+#include "../../bus/sio/sio.h"
+extern systemBus SIO;
 
 #include "status_error_codes.h"
 #include "TCP.h"
@@ -45,10 +50,13 @@ using namespace std;
 #ifdef ESP_PLATFORM
 void onTimer(void *info)
 {
-    sioNetwork *parent = (sioNetwork *)info;
-    portENTER_CRITICAL_ISR(&parent->timerMux);
-    parent->interruptProceed = !parent->interruptProceed;
-    portEXIT_CRITICAL_ISR(&parent->timerMux);
+    if (SIO.anyNetworkDeviceRequiresReading()) {
+        sioNetwork *parent = (sioNetwork *)info;
+        portENTER_CRITICAL_ISR(&parent->timerMux);
+        parent->interruptProceed = !parent->interruptProceed;
+        fnLedManager.toggle(LED_BT);
+        portEXIT_CRITICAL_ISR(&parent->timerMux);
+    }
 }
 #endif
 
@@ -71,9 +79,8 @@ sioNetwork::sioNetwork()
  */
 sioNetwork::~sioNetwork()
 {
-#ifndef ESP_PLATFORM // TODO apc: can be be in both?
+    // Stop timer if it exists
     timer_stop();
-#endif
 
     // first, delete protocol instance
     if (protocol != nullptr)
@@ -116,9 +123,6 @@ void sioNetwork::sio_open()
     }
 
     channelMode = PROTOCOL;
-
-    // Delete timer if already extant.
-    timer_stop();
 
     // persist aux1/aux2 values - NOTHING USES THEM!
     open_aux1 = cmdFrame.aux1;
@@ -165,6 +169,9 @@ void sioNetwork::sio_open()
     // Reset status buffer
     status.reset();
 
+    // Reset EOF seen flag for new connection
+    eofSeen = false;
+
     // Parse and instantiate protocol
     parse_and_instantiate_protocol();
 
@@ -198,17 +205,16 @@ void sioNetwork::sio_open()
         return;
     }
 
-    // Everything good, start the interrupt timer!
+    // Everything good, start the interrupt timer! This is no-op if the timer already started
     timer_start();
 
-    // Go ahead and send an interrupt, so Atari knows to get status.
-    protocol->forceStatus = true;
-
-    // TODO: Finally, go ahead and let the parsers know
     json = new FNJSON();
     json->setLineEnding("\x9b");
     json->setProtocol(protocol);
     channelMode = PROTOCOL;
+
+    // do an initial status, so we can get the timer going to toggle the interrupts if there's a connection or data available
+    protocol->status(&status);
 
     // And signal complete!
     sio_complete();
@@ -257,6 +263,9 @@ void sioNetwork::sio_close()
         delete json;
         json = nullptr;
     }
+
+    // Stop timer if no other network devices require reading
+    timer_stop();
 
 #ifdef ESP_PLATFORM
     long after_heap = esp_get_free_internal_heap_size();
@@ -490,7 +499,7 @@ void sioNetwork::sio_status_local()
 bool sioNetwork::sio_status_channel_json(NetworkStatus *ns)
 {
     ns->connected = json_bytes_remaining > 0;
-    ns->error = json_bytes_remaining > 0 ? 1 : 136;
+    ns->error = json_bytes_remaining > 0 ? 1 : NETWORK_ERROR_END_OF_FILE;
     ns->rxBytesWaiting = json_bytes_remaining;
     return false; // for now
 }
@@ -522,8 +531,6 @@ void sioNetwork::sio_status_channel()
         sio_status_channel_json(&status);
         break;
     }
-    // clear forced flag (first status after open)
-    protocol->forceStatus = false;
 
     // Serialize status into status bytes
     serialized_status[0] = status.rxBytesWaiting & 0xFF;
@@ -536,6 +543,11 @@ void sioNetwork::sio_status_channel()
 
     // and send to computer
     bus_to_computer(serialized_status, sizeof(serialized_status), err);
+    
+    // If client just checked status and got EOF, disable further EOF interrupts
+    if (status.error == NETWORK_ERROR_END_OF_FILE) {
+        eofSeen = true;
+    }
 }
 
 /**
@@ -962,18 +974,15 @@ void sioNetwork::sio_poll_interrupt()
         if (protocol->interruptEnable == false)
             return;
 
-        /* assert interrupt if we need Status call from host to arrive */
-        if (protocol->forceStatus == true)
-        {
-            sio_assert_interrupt();
-            return;
-        }
-
         protocol->fromInterrupt = true;
         protocol->status(&status);
         protocol->fromInterrupt = false;
 
-        if (status.rxBytesWaiting > 0 || status.connected == 0)
+#ifdef ESP_PLATFORM
+        if (status.rxBytesWaiting > 0 || status.connected == 0 || !eofSeen)
+#else
+        if (status.rxBytesWaiting > 0 || !eofSeen)
+#endif
             sio_assert_interrupt();
 #ifndef ESP_PLATFORM
         else
@@ -1071,13 +1080,17 @@ void sioNetwork::parse_and_instantiate_protocol()
 void sioNetwork::timer_start()
 {
 #ifdef ESP_PLATFORM
-    esp_timer_create_args_t tcfg;
-    tcfg.arg = this;
-    tcfg.callback = onTimer;
-    tcfg.dispatch_method = esp_timer_dispatch_t::ESP_TIMER_TASK;
-    tcfg.name = nullptr;
-    esp_timer_create(&tcfg, &rateTimerHandle);
-    esp_timer_start_periodic(rateTimerHandle, timerRate * 1000);
+    // Start timer if no timer already exists for this device
+    if (rateTimerHandle == nullptr) {
+        esp_timer_create_args_t tcfg;
+        tcfg.arg = this;
+        tcfg.callback = onTimer;
+        tcfg.dispatch_method = esp_timer_dispatch_t::ESP_TIMER_TASK;
+        tcfg.name = nullptr;
+        esp_timer_create(&tcfg, &rateTimerHandle);
+        esp_timer_start_periodic(rateTimerHandle, timerRate * 1000);
+        Debug_printf("Timer started for device %02x\n", _devnum);
+    }
 #else
     lastInterruptMs = fnSystem.millis() - timerRate;
 #endif
@@ -1089,13 +1102,14 @@ void sioNetwork::timer_start()
 void sioNetwork::timer_stop()
 {
 #ifdef ESP_PLATFORM
-    // Delete existing timer
-    if (rateTimerHandle != nullptr)
-    {
-        Debug_println("Deleting existing rateTimer\n");
+    // Only stop timer if it exists and no network devices require reading
+    if (rateTimerHandle != nullptr && !SIO.anyNetworkDeviceRequiresReading()) {
+        Debug_printf("Stopping timer for device %02x - no devices require reading\n", _devnum);
         esp_timer_stop(rateTimerHandle);
         esp_timer_delete(rateTimerHandle);
         rateTimerHandle = nullptr;
+        // turn the light off, as it's "toggled", not "blinked" by the timer, so could end up in the ON state
+        fnLedManager.set(LED_BT, false);
     }
 #endif
 }
@@ -1322,6 +1336,19 @@ void sioNetwork::sio_do_idempotent_command_80()
     }
     else
         sio_complete();
+}
+
+/**
+ * @brief Check if the network device requires timer polling
+ * @return true if connected or has data waiting or EOF hasn't been seen by client yet
+ */
+bool sioNetwork::requiresReading() const
+{
+    // Timer should run when connected OR has data waiting OR EOF hasn't been seen by client yet
+    // if (protocol != nullptr) {
+    //     Debug_printf("requiresReading() - protocol: %p, connected: %d, rxBytesWaiting: %d, eofSeen: %d\n", protocol, status.connected, status.rxBytesWaiting, eofSeen);
+    // }
+    return protocol != nullptr && (status.connected != 0 || status.rxBytesWaiting > 0 || !eofSeen);
 }
 
 #endif /* BUILD_ATARI */
