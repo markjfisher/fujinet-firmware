@@ -518,8 +518,9 @@ void systemBus::service()
     // Handle interrupts from network protocols
     for (int i = 0; i < 8; i++)
     {
-        if (_netDev[i] != nullptr)
+        if (_netDev[i] != nullptr && _netDev[i]->requiresReading()) {
             _netDev[i]->sio_poll_interrupt();
+        }
     }
 #ifndef ESP_PLATFORM
     // loop until all SIO "events" are processed
@@ -900,6 +901,22 @@ void systemBus::setUltraHigh(bool _enable, int _ultraHighBaud)
         fnSioCom.set_baudrate(SIO_STANDARD_BAUDRATE);
 #endif
     }
+}
+
+/**
+ * Check if any network device requires reading
+ * @return true if any network device requires reading, false otherwise
+ */
+bool systemBus::anyNetworkDeviceRequiresReading()
+{
+    for (int i = 0; i < 8; i++)
+    {
+        if (_netDev[i] != nullptr && _netDev[i]->requiresReading())
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 systemBus SIO; // Global SIO object

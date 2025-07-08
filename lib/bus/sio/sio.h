@@ -333,6 +333,12 @@ public:
     // I wish this codebase would make up its mind to use camel or snake casing.
     modem *get_modem() { return _modemDev; }
 
+    /**
+     * Check if any network device requires reading
+     * @return true if any network device requires reading, false otherwise
+     */
+    bool anyNetworkDeviceRequiresReading();
+
 #ifdef ESP_PLATFORM
     QueueHandle_t qSioMessages = nullptr;
 #endif
