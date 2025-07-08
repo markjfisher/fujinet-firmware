@@ -405,7 +405,7 @@ void rs232Network::rs232_status_local()
 bool rs232Network::rs232_status_channel_json(NetworkStatus *ns)
 {
     ns->connected = json_bytes_remaining > 0;
-    ns->error = json_bytes_remaining > 0 ? 1 : 136;
+    ns->error = json_bytes_remaining > 0 ? 1 : NETWORK_ERROR_END_OF_FILE;
     ns->rxBytesWaiting = json_bytes_remaining;
     return false; // for now
 }
