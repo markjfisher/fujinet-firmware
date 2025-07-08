@@ -133,6 +133,12 @@ public:
     void sio_poll_interrupt();
 
     /**
+     * @brief Check if the network connection is active
+     * @return true if status.connected is not 0, false otherwise
+     */
+    bool requiresReading() const;
+
+    /**
      * Process incoming SIO command for device 0x7X
      * @param comanddata incoming 4 bytes containing command and aux bytes
      * @param checksum 8 bit checksum
@@ -258,6 +264,11 @@ private:
      */
     unsigned char reservedSave = 0;
     unsigned char errorSave = 1;
+
+    /**
+     * Track if EOF has been seen by client via status call
+     */
+    bool eofSeen = false;
 
     /**
      * The fnJSON parser wrapper object

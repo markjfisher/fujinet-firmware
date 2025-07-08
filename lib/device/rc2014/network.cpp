@@ -296,7 +296,7 @@ bool rc2014Network::write_channel(unsigned short num_bytes)
 bool rc2014Network::status_channel_json(NetworkStatus *ns)
 {
     ns->connected = json_bytes_remaining > 0;
-    ns->error = json_bytes_remaining > 0 ? 1 : 136;
+    ns->error = json_bytes_remaining > 0 ? 1 : NETWORK_ERROR_END_OF_FILE;
     ns->rxBytesWaiting = json_bytes_remaining;
     return false; // for now
 }
