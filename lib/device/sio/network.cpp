@@ -169,6 +169,9 @@ void sioNetwork::sio_open()
     // Reset status buffer
     status.reset();
 
+    // Reset EOF seen flag for new connection
+    eofSeen = false;
+
     // Parse and instantiate protocol
     parse_and_instantiate_protocol();
 
@@ -528,8 +531,6 @@ void sioNetwork::sio_status_channel()
         sio_status_channel_json(&status);
         break;
     }
-    // clear forced flag (first status after open)
-    protocol->forceStatus = false;
 
     // Serialize status into status bytes
     serialized_status[0] = status.rxBytesWaiting & 0xFF;
@@ -542,6 +543,11 @@ void sioNetwork::sio_status_channel()
 
     // and send to computer
     bus_to_computer(serialized_status, sizeof(serialized_status), err);
+    
+    // If client just checked status and got EOF, disable further EOF interrupts
+    if (status.error == 136 && status.connected == 0) {
+        eofSeen = true;
+    }
 }
 
 /**
@@ -1334,13 +1340,12 @@ void sioNetwork::sio_do_idempotent_command_80()
 
 /**
  * @brief Check if the network device requires timer polling
- * @return true if connected or has data waiting
+ * @return true if connected or has data waiting or EOF hasn't been seen by client yet
  */
 bool sioNetwork::requiresReading() const
 {
-    // Timer should run when connected OR has data waiting
-    // Stop timer at EOF (connected=0 AND rxBytesWaiting=0) to prevent infinite interrupts
-    return protocol != nullptr && (status.connected != 0 || status.rxBytesWaiting > 0);
+    // Timer should run when connected OR has data waiting OR EOF hasn't been seen by client yet
+    return protocol != nullptr && (status.connected != 0 || status.rxBytesWaiting > 0 || !eofSeen);
 }
 
 #endif /* BUILD_ATARI */

@@ -266,6 +266,11 @@ private:
     unsigned char errorSave = 1;
 
     /**
+     * Track if EOF has been seen by client via status call
+     */
+    bool eofSeen = false;
+
+    /**
      * The fnJSON parser wrapper object
      */
     FNJSON *json = nullptr;
