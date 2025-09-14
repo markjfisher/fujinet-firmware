@@ -36,12 +36,12 @@ size_t IOChannel::dataIn(void *buffer, size_t length)
         uint64_t elapsed_us = now - start;
         uint64_t timeout_us = read_timeout_ms * 1000;
         
-        Debug_printf("%zu\n", length);
+        // Debug_printf("%zu\n", length);
         if (elapsed_us > timeout_us)
         {
             // Debug_printf("IOChannel::dataIn - TIMEOUT after %llu us (limit: %llu us), read %zu of %zu bytes\n", 
             //             elapsed_us, timeout_us, total, total + length);
-            Debug_printf("B");
+            // Debug_printf("B");
             break;
         }
         
@@ -55,7 +55,7 @@ size_t IOChannel::dataIn(void *buffer, size_t length)
         if (!rlen)
         {
             // Debug_printf("IOChannel::dataIn - No data available, elapsed: %llu us\n", elapsed_us);
-            Debug_printf("R");
+            // Debug_printf("R");
             continue;
         }
         

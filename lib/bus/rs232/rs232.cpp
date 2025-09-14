@@ -291,7 +291,8 @@ void systemBus::setup()
 
     // Set up UART
 #ifndef FUJINET_OVER_USB
-    _port.begin(ChannelConfig().baud(Config.get_rs232_baud()).deviceID(SERIAL_DEVICE));
+    // _port.begin(ChannelConfig().baud(Config.get_rs232_baud()).deviceID(SERIAL_DEVICE));
+    _port.begin(ChannelConfig().baud(Config.get_rs232_baud()).readTimeout(1000).deviceID(SERIAL_DEVICE));
 
 #ifdef ESP_PLATFORM
     // // INT PIN
