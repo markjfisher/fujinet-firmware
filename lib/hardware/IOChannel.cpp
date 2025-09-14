@@ -1,6 +1,7 @@
 #include "IOChannel.h"
 
 #include <stdarg.h>
+#include "../../include/debug.h"
 #if defined(ESP_PLATFORM)
 #include <esp_timer.h>
 #define GET_TIMESTAMP() esp_timer_get_time()
@@ -25,23 +26,52 @@ size_t IOChannel::dataIn(void *buffer, size_t length)
 
     ptr = (uint8_t *) buffer;
     now = start = GET_TIMESTAMP();
+    
+    // Debug_printf("IOChannel::dataIn - Requesting %zu bytes, timeout: %d ms\n", length, read_timeout_ms);
+    // Debug_printf("test\n");
+    
     while (length)
     {
         now = GET_TIMESTAMP();
-        if (now - start > read_timeout_ms * 1000)
+        uint64_t elapsed_us = now - start;
+        uint64_t timeout_us = read_timeout_ms * 1000;
+        
+        Debug_printf("%zu\n", length);
+        if (elapsed_us > timeout_us)
+        {
+            // Debug_printf("IOChannel::dataIn - TIMEOUT after %llu us (limit: %llu us), read %zu of %zu bytes\n", 
+            //             elapsed_us, timeout_us, total, total + length);
+            Debug_printf("B");
             break;
-        rlen = std::min(length, available());
+        }
+        
+        size_t avail = available();
+        rlen = std::min(length, avail);
+        
+        // Debug_printf("1");
+        // Debug_printf("IOChannel::dataIn - Available: %zu, requesting: %zu, will read: %zu, total so far: %zu\n", 
+        //             avail, length, rlen, total);
+        
         if (!rlen)
+        {
+            // Debug_printf("IOChannel::dataIn - No data available, elapsed: %llu us\n", elapsed_us);
+            Debug_printf("R");
             continue;
+        }
+        
         memcpy(&ptr[total], _fifo.data(), rlen);
         _fifo.erase(0, rlen);
         total += rlen;
         length -= rlen;
 
+        // Debug_printf("IOChannel::dataIn - Read %zu bytes, total: %zu, remaining: %zu\n", rlen, total, length);
+
         // We received data, reset timeout
         start = now;
+        // Debug_printf("IOChannel::dataIn - Data received, resetting timeout\n");
     }
 
+    // Debug_printf("IOChannel::dataIn - Completed: read %zu bytes total\n", total);
     return total;
 }
 

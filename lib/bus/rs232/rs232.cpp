@@ -103,12 +103,10 @@ uint8_t virtualDevice::bus_to_peripheral(uint8_t *buf, unsigned short len)
 
     uint8_t ck_tst = rs232_checksum(buf, len);
 
-#ifdef VERBOSE_RS232
-    Debug_printf("RECV <%u> BYTES, checksum: %hu\n\t", l, ck_rcv);
-    for (int i = 0; i < len; i++)
-        Debug_printf("%02x ", buf[i]);
-    Debug_print("\n");
-#endif
+// #ifdef VERBOSE_RS232
+    Debug_printf("RECV <%02x> BYTES, checksum: %02x\n", l, ck_rcv);
+    Debug_printf("%s\n", util_hexdump(buf, len).c_str());
+// #endif
 
     fnSystem.delay_microseconds(DELAY_T4);
 
