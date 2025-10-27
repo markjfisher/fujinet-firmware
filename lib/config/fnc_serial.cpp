@@ -68,10 +68,11 @@ void fnConfig::_read_section_boip(std::stringstream &ss)
     }
 }
 
-#ifdef BUILD_RS232
+#if defined(BUILD_RS232) || defined(BUILD_BBC_RS232)
 void fnConfig::_read_section_rs232(std::stringstream &ss)
 {
     std::string line;
+    Debug_println("Reading rs232 section");
 
     while (_read_line(ss,line,'[') >= 0)
     {
@@ -82,11 +83,12 @@ void fnConfig::_read_section_rs232(std::stringstream &ss)
             if (strcasecmp(name.c_str(),"baud") == 0)
             {
                 int baud = atoi(value.c_str());
-                if (baud<=0 || baud>= INT_MAX)
+                if (baud <= 0 || baud >= INT_MAX)
                 {
                     baud = CONFIG_DEFAULT_RS232_BAUD;
                 }
-                    _rs232.baud = baud;
+                _rs232.baud = baud;
+                Debug_printf("Set baud from config to %s\n", value.c_str());
             }
         }
     }

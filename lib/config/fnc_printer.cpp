@@ -2,6 +2,7 @@
 #include <cstring>
 #include "../../include/debug.h"
 
+#ifdef PRINTER_CLASS
 // Returns printer type stored in configuration for printer slot
 PRINTER_CLASS::printer_type fnConfig::get_printer_type(uint8_t num)
 {
@@ -82,3 +83,4 @@ void fnConfig::_read_section_printer(std::stringstream &ss, int index)
         }
     }
 }
+#endif

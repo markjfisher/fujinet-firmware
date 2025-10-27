@@ -245,6 +245,7 @@ int fnHttpService::redirect_or_result(mg_connection *c, mg_http_message *hm, int
 int fnHttpService::get_handler_print(struct mg_connection *c)
 {
     Debug_println("Print request handler");
+#ifdef PRINTER_CLASS
 
     uint64_t now = fnSystem.millis();
     // Get a pointer to the current (only) printer
@@ -345,6 +346,8 @@ int fnHttpService::get_handler_print(struct mg_connection *c)
     printer->reset_printer(); // destroy,create new printer emulator object of previous type.
 
     Debug_println("Print request completed");
+
+#endif
 
     return 0; //ESP_OK;
 }

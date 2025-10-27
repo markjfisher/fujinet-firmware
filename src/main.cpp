@@ -338,6 +338,15 @@ void main_setup(int argc, char *argv[])
     SYSTEM_BUS.addDevice(ptr, RS232_DEVICEID_PRINTER); // P:
 #endif
 
+#ifdef BUILD_BBC_RS232
+    // BBC RS232 minimal setup - disk support only
+    Debug_print("BBC RS232 initialization\n");
+    theFuji->setup();
+    BBC_RS232.setup();
+    BBC_RS232.addDevice(theFuji, RS232_DEVICEID_FUJINET);
+    Debug_print("BBC RS232 setup complete\n");
+#endif
+
 #ifdef BUILD_RC2014
     theFuji->setup(&rc2014Bus);
     rc2014Bus.setup();

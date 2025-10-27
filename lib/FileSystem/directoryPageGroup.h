@@ -9,7 +9,7 @@
 #include "fnFS.h"  // for fsdir_entry_t
 #include "../../../include/debug.h"  // for Debug_printf
 
-// Include platform-specific media type definitions
+// Include platform-specific media type definitions 
 #include "mediaTypeProxy.h"
 
 // Helper class to manage directory entry page groups
@@ -105,7 +105,12 @@ private:
         }
 
         // Media type (full byte)
+
+#ifndef NEW_MEDIATYPE
         uint8_t media_type = MediaType::discover_mediatype(f->filename);
+#else
+        uint8_t media_type = MediaTypeBase::discover_mediatype(f->filename);
+#endif
         dest[bytes_written++] = media_type;
 
         // Debug_printf("Entry: %s\n", f->filename);

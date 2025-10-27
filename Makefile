@@ -24,6 +24,9 @@ zip:
 coco-lwm:
 	$(call builder, -p COCO -g)
 
+bbc-rs232-lwm:
+	$(call builder, -p BBC_RS232 -g)
+
 rs232-lwm:
 	$(call builder, -p RS232 -g)
 

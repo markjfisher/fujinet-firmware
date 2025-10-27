@@ -235,7 +235,9 @@ void fnHttpServiceConfigurator::config_printer_enabled(std::string printer_enabl
     Debug_printf("New Printer Enable Value: %s\n",printer_enabled.c_str());
 
     // Store
+#ifdef PRINTER_CLASS
     Config.store_printer_enabled(atoi(printer_enabled.c_str()));
+#endif
     // Save
     Config.save();
 }
@@ -383,6 +385,7 @@ int printer_number_from_string(std::string printernumber)
 
 void fnHttpServiceConfigurator::config_printer_model(std::string printernumber, std::string printermodel)
 {
+#ifdef PRINTER_CLASS
     int pn = printer_number_from_string(printernumber);
 
 #ifndef ESP_PLATFORM
@@ -411,10 +414,12 @@ void fnHttpServiceConfigurator::config_printer_model(std::string printernumber, 
     fnPrinters.get_ptr(0)->set_printer_type(t);
 
     Config.save();
+#endif
 }
 
 void fnHttpServiceConfigurator::config_printer_port(std::string printernumber, std::string printerport)
 {
+#ifdef PRINTER_CLASS
     int pn = printer_number_from_string(printernumber);
 
 #ifndef ESP_PLATFORM
@@ -449,6 +454,7 @@ void fnHttpServiceConfigurator::config_printer_port(std::string printernumber, s
 #endif
 
     Config.save();
+#endif
 }
 
 void fnHttpServiceConfigurator::config_encrypt_passphrase_enabled(std::string encrypt_passphrase_enabled)
@@ -742,10 +748,12 @@ int fnHttpServiceConfigurator::process_config_post(const char *postdata, size_t 
         {
             config_boot_mode(i->second);
         }
+#ifdef PRINTER_CLASS
         else if (i->first.compare("printer_enabled") == 0)
         {
             config_printer_enabled(i->second);
         }
+#endif
         else if (i->first.compare("modem_enabled") == 0)
         {
             config_modem_enabled(i->second);
