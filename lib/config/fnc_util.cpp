@@ -42,6 +42,7 @@ fnConfig::section_match fnConfig::_find_section_in_line(std::string &line, int &
                 //Debug_printf("Found MOUNT %d\r\n", index);
                 return SECTION_MOUNT;
             }
+#ifdef PRINTER_CLASS
             else if (strncasecmp("Printer", s1.c_str(), 7) == 0)
             {
                 index = atoi((const char *)(s1.c_str() + 7) - 1);
@@ -53,6 +54,7 @@ fnConfig::section_match fnConfig::_find_section_in_line(std::string &line, int &
                 //Debug_printf("Found PRINTER %d\r\n", index);
                 return SECTION_PRINTER;
             }
+#endif
             if (strncasecmp("WiFiStored", s1.c_str(), 10) == 0)
             {
                 index = atoi((const char *)(s1.c_str() + 10)) - 1;
@@ -125,7 +127,7 @@ fnConfig::section_match fnConfig::_find_section_in_line(std::string &line, int &
             {
                 return SECTION_BOIP;
             }
-#ifdef BUILD_RS232
+#if defined(BUILD_RS232) || defined(BUILD_BBC_RS232)
             else if (strncasecmp("RS232",s1.c_str(),5) == 0)
             {
                 return SECTION_RS232;

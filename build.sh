@@ -332,9 +332,9 @@ if [ ! -z "$PC_TARGET" ] ; then
 
   echo "Building for $BUILD_TYPE"
   if [ -z "$GEN_CMD" ]; then
-    cmake .. -DFUJINET_TARGET=$PC_TARGET -DCMAKE_BUILD_TYPE=$BUILD_TYPE "$@"
+    cmake .. -DFUJINET_TARGET=$PC_TARGET -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_EXPORT_COMPILE_COMMANDS=ON "$@"
   else
-    cmake "$GEN_CMD" .. -DFUJINET_TARGET=$PC_TARGET -DCMAKE_BUILD_TYPE=$BUILD_TYPE "$@"
+    cmake "$GEN_CMD" .. -DFUJINET_TARGET=$PC_TARGET -DCMAKE_BUILD_TYPE=$BUILD_TYPE "$@" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
   fi
   if [ $? -ne 0 ] ; then
     echo "Error running initial cmake. Aborting"

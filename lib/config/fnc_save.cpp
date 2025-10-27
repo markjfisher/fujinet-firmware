@@ -102,6 +102,7 @@ void fnConfig::save()
     }
 
     // PRINTERS
+#ifdef PRINTER_CLASS
     for (i = 0; i < MAX_PRINTER_SLOTS; i++)
     {
         if (_printer_slots[i].type != PRINTER_CLASS::printer_type::PRINTER_INVALID)
@@ -111,7 +112,7 @@ void fnConfig::save()
             ss << "port=" << (_printer_slots[i].port + 1) << LINETERM; // Write port # as 1-based
         }
     }
-
+#endif
     // TAPES
     for (i = 0; i < MAX_TAPE_SLOTS; i++)
     {
@@ -178,7 +179,7 @@ void fnConfig::save()
         ss << "port=" << LINETERM;
     }
 
-#ifdef BUILD_RS232
+#if defined(BUILD_RS232) || defined(BUILD_BBC_RS232)
     ss << LINETERM << "[RS232]" << LINETERM;
     ss << "baud=" << _rs232.baud << LINETERM;
 #endif

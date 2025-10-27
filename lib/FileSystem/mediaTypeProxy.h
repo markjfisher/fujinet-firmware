@@ -25,6 +25,9 @@
 #include "../media/h89/mediaType.h"
 #elif BUILD_COCO
 #include "../media/drivewire/mediaType.h"
+#elif BUILD_BBC_RS232
+// eventually all should use this one
+#include "../media/media_base.h"
 #endif
 
 #endif

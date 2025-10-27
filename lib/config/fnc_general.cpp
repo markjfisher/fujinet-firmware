@@ -166,6 +166,7 @@ void fnConfig::store_general_SD_path(const char *dir_path)
 }
 #endif
 
+#ifdef PRINTER_CLASS
 // Saves ENABLE or DISABLE printer
 void fnConfig::store_printer_enabled(bool printer_enabled)
 {
@@ -175,6 +176,7 @@ void fnConfig::store_printer_enabled(bool printer_enabled)
     _general.printer_enabled = printer_enabled;
     _dirty = true;
 }
+#endif
 
 void fnConfig::_read_section_general(std::stringstream &ss)
 {

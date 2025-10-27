@@ -70,6 +70,13 @@
 // MSYS2: DEVICE_TYPE is defined in winioctl.h
 #undef DEVICE_TYPE
 #define DEVICE_TYPE drivewireDisk
-#endif 
+#endif
+
+#ifdef BUILD_BBC_RS232
+#include "bbc_rs232/disk.h"
+// MSYS2: DEVICE_TYPE is defined in winioctl.h
+#undef DEVICE_TYPE
+#define DEVICE_TYPE bbcRS232Disk
+#endif
 
 #endif // DEVICE_DISK_H

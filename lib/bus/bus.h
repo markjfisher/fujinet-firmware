@@ -49,6 +49,11 @@
 #include "rs232/rs232.h"
 #endif
 
+#ifdef BUILD_BBC_RS232
+#include "bbc_rs232/bbc_rs232.h"
+#define SYSTEM_BUS BBC_RS232
+#endif
+
 #ifdef BUILD_CX16
 #include "cx16_i2c/cx16_i2c.h"
 #define FN_BUS_PORT fnUartBUS // TBD

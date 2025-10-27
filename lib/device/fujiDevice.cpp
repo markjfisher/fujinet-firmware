@@ -461,7 +461,11 @@ bool fujiDevice::fujicore_mount_disk_image_success(uint8_t deviceSlot, uint8_t a
                  disk.filename, disk.host_slot, mode, deviceSlot + 1);
 
     // TODO: Refactor along with mount disk image.
+#ifdef NEW_DISKTYPE
+    disk.disk_dev.set_host(&host);
+#else
     disk.disk_dev.host = &host;
+#endif
 
     disk.fileh = host.fnfile_open(disk.filename, disk.filename, sizeof(disk.filename), mode);
 
@@ -480,7 +484,12 @@ bool fujiDevice::fujicore_mount_disk_image_success(uint8_t deviceSlot, uint8_t a
     if (access_mode == DISK_ACCESS_MODE_WRITE)
     {
         Debug_printv("Setting disk to read/write");
+
+#ifdef NEW_DISKTYPE
+        disk_dev->set_readonly(false);
+#else
         disk_dev->readonly = false;
+#endif
     }
 
     return true;
@@ -957,7 +966,13 @@ bool fujiDevice::fujicmd_unmount_disk_image_success(uint8_t deviceSlot)
 
     disk_dev = get_disk_dev(deviceSlot);
     if (disk_dev->device_active)
-        disk_dev->switched = true;
+
+#ifdef NEW_DISKTYPE
+    disk_dev->set_switched(true);
+#else
+    disk_dev->switched = true;
+#endif
+
     disk_dev->unmount();
     _fnDisks[deviceSlot].reset();
 

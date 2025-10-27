@@ -7,6 +7,9 @@
 #include "../fuji/fujiDisk.h"
 #include "../fuji/fujiCmd.h"
 
+// this was being loaded transiently through printer_emulator.h
+#include "fnFsSD.h"
+
 #include "hash.h"
 
 #include <string>

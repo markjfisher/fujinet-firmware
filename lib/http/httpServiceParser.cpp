@@ -477,9 +477,11 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
     case FN_BOOT_MODE:
         resultstream << Config.get_general_boot_mode();
         break;
+#ifdef PRINTER_CLASS
     case FN_PRINTER_ENABLED:
         resultstream << Config.get_printer_enabled();
         break;
+#endif
     case FN_MODEM_ENABLED:
         resultstream << Config.get_modem_enabled();
         break;
@@ -604,6 +606,7 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         break;
     case FN_PRINTER_LIST:
         {
+#ifdef PRINTER_CLASS
             char *result = (char *) malloc(MAX_PRINTER_LIST_BUFFER);
             if (result != NULL)
             {
@@ -621,6 +624,7 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
                 free(result);
             } else
                 resultstream << "Insufficent memory";
+#endif
         }
         break;
     case FN_ENCRYPT_PASSPHRASE_ENABLED:
