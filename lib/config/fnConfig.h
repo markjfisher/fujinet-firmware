@@ -39,7 +39,7 @@
 #  define CONFIG_DEFAULT_BOIP_PORT 1985
 #endif
 
-#ifdef BUILD_RS232
+#if defined(BUILD_RS232) || defined(BUILD_BBC_RS232)
 #define CONFIG_DEFAULT_RS232_BAUD 115200
 #endif
 
@@ -271,8 +271,7 @@ public:
     void store_boip_host(const char *host);
     void store_boip_port(int port);
 
-#ifdef BUILD_RS232
-    // RS232
+#if defined(BUILD_RS232) || defined(BUILD_BBC_RS232)
     int get_rs232_baud() { return _rs232.baud; }
     void store_rs232_baud(int baud);
 #endif
@@ -316,7 +315,9 @@ private:
     void _read_section_network(std::stringstream &ss);
     void _read_section_host(std::stringstream &ss, int index);
     void _read_section_mount(std::stringstream &ss, int index);
+#ifdef PRINTER_CLASS
     void _read_section_printer(std::stringstream &ss, int index);
+#endif
     void _read_section_tape(std::stringstream &ss, int index);
     void _read_section_modem(std::stringstream &ss);
     void _read_section_cassette(std::stringstream &ss);
@@ -338,7 +339,9 @@ private:
         SECTION_BT,
         SECTION_HOST,
         SECTION_MOUNT,
+#ifdef PRINTER_CLASS
         SECTION_PRINTER,
+#endif
         SECTION_NETWORK,
         SECTION_TAPE,
         SECTION_MODEM,
@@ -351,7 +354,7 @@ private:
         SECTION_SERIAL,
         SECTION_BOS,
 #endif
-#ifdef BUILD_RS232
+#if defined(BUILD_RS232) || defined(BUILD_BBC_RS232)
         SECTION_RS232,
 #endif
         SECTION_UNKNOWN
@@ -502,7 +505,7 @@ private:
     };
 #endif
 
-#ifdef BUILD_RS232
+#if defined(BUILD_RS232) || defined(BUILD_BBC_RS232)
     struct rs232_info
     {
         int baud = 115200;
@@ -551,7 +554,9 @@ private:
 
     host_info _host_slots[MAX_HOST_SLOTS];
     mount_info _mount_slots[MAX_MOUNT_SLOTS];
+#ifdef PRINTER_CLASS
     printer_info _printer_slots[MAX_PRINTER_SLOTS];
+#endif
     mount_info _tape_slots[MAX_TAPE_SLOTS];
     wifi_info _wifi_stored[MAX_WIFI_STORED];
 
@@ -569,7 +574,7 @@ private:
     cpm_info _cpm;
     device_enable_info _denable;
     phbook_info _phonebook_slots[MAX_PB_SLOTS];
-#ifdef BUILD_RS232
+#if defined(BUILD_RS232) || defined(BUILD_BBC_RS232)
     rs232_info _rs232;
 #endif
 };

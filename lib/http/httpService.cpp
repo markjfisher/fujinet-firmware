@@ -438,9 +438,11 @@ esp_err_t fnHttpService::get_handler_file_in_path(httpd_req_t *req)
     return ESP_OK;
 }
 
+
 esp_err_t fnHttpService::get_handler_print(httpd_req_t *req)
 {
     Debug_println("Print request handler");
+#ifdef PRINTER_CLASS
 
     fnHTTPD.clearErrMsg();
 
@@ -557,6 +559,8 @@ esp_err_t fnHttpService::get_handler_print(httpd_req_t *req)
     printer->reset_printer(); // destroy,create new printer emulator object of previous type.
 
     Debug_println("Print request completed");
+
+#endif
 
     return ESP_OK;
 }

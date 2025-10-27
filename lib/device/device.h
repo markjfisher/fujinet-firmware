@@ -53,6 +53,20 @@
     rs232CPM sioZ;
 #endif
 
+#ifdef BUILD_BBC_RS232
+# include "bbc_rs232/disk.h"    // Must come first to define DEVICE_TYPE
+# include "bbc_rs232/bbcFuji.h"
+//# include "bbc_rs232/modem.h"
+//# include "bbc_rs232/network.h"
+//# include "bbc_rs232/printer.h"
+//# include "bbc_rs232/printerlist.h"
+
+    // BBC RS232 device instances
+    // Note: Disk devices are managed by theFuji, not as globals
+    // Modem, printer, network to be implemented later
+#endif
+
+
 #ifdef BUILD_IEC
 # include "iec/clock.h"
 # include "iec/cpm.h"

@@ -19,6 +19,12 @@
  * =============================================================================
  */
 
+ #include <array>
+ #include <cstddef>
+ #include <algorithm>
+ #include <cstring>
+ #include <string>
+ 
 #include "fujiDevice.h"
 
 #include "fnConfig.h"
@@ -464,7 +470,11 @@ bool fujiDevice::fujicore_mount_disk_image_success(uint8_t deviceSlot, uint8_t a
                  disk.filename, disk.host_slot, mode, deviceSlot + 1);
 
     // TODO: Refactor along with mount disk image.
+#ifdef NEW_DISKTYPE
+    disk.disk_dev.set_host(&host);
+#else
     disk.disk_dev.host = &host;
+#endif
 
     disk.fileh = host.fnfile_open(disk.filename, disk.filename, sizeof(disk.filename), mode);
 
@@ -477,14 +487,19 @@ bool fujiDevice::fujicore_mount_disk_image_success(uint8_t deviceSlot, uint8_t a
 
     // We need the file size for loading XEX files and for CASSETTE, so get that too
     disk.disk_size = host.file_size(disk.fileh);
-
+#ifdef NEW_DISKTYPE
+    // should access_mode (a fujiDevice concept) be converted to something more consumable by disk type?
+    disk.disk_type = disk_dev->mount(disk.fileh, disk.filename, disk.disk_size, MEDIATYPE_UNKNOWN, (access_mode & DISK_ACCESS_MODE_WRITE) == DISK_ACCESS_MODE_WRITE);
+#else
     // FIXME - access_mode should be an argument to mount()
     disk.disk_type = disk_dev->mount(disk.fileh, disk.filename, disk.disk_size);
+    // TODO: should this check for the flag (it's a bitmask) rather than the value? What if it's mounted?
     if (access_mode == DISK_ACCESS_MODE_WRITE)
     {
         Debug_printv("Setting disk to read/write");
         disk_dev->readonly = false;
     }
+#endif
 
     return true;
 }
@@ -956,7 +971,14 @@ bool fujiDevice::fujicmd_unmount_disk_image_success(uint8_t deviceSlot)
 
     disk_dev = get_disk_dev(deviceSlot);
     if (disk_dev->device_active)
+    {
+#ifdef NEW_DISKTYPE
+        disk_dev->set_switched(true);
+#else
         disk_dev->switched = true;
+#endif
+    }
+
     disk_dev->unmount();
     _fnDisks[deviceSlot].reset();
 
@@ -1185,19 +1207,71 @@ void fujiDevice::fujicmd_read_host_slots()
 }
 
 // Read and save host slot data from computer
+// Invalid hostname blocks are rejected,
+// each must contain a valid C string of max size MAX_HOSTNAME_LEN-1
 void fujiDevice::fujicmd_write_host_slots()
 {
     Debug_println("Fuji cmd: WRITE HOST SLOTS");
 
     char hostSlots[MAX_HOSTS][MAX_HOSTNAME_LEN];
-    if (!transaction_get(&hostSlots, sizeof(hostSlots)))
+    if (!transaction_get(hostSlots, sizeof(hostSlots))) {
         transaction_error();
+        return;
+    }
 
-    for (int i = 0; i < MAX_HOSTS; i++)
-    {
+    // Validate each slot has a terminating NUL within its fixed field
+    for (int i = 0; i < MAX_HOSTS; ++i) {
+        const void* nul = std::memchr(hostSlots[i], '\0', MAX_HOSTNAME_LEN);
+        if (!nul) {
+            // No NUL in this slot -> reject the whole transaction
+            transaction_error();
+            return;
+        }
+    }
+
+    // All strings are NUL-terminated within bounds; safe to consume
+    for (int i = 0; i < MAX_HOSTS; ++i) {
         hostMounted[i] = false;
         _fnHosts[i].set_hostname(hostSlots[i]);
     }
+
+    populate_config_from_slots();
+    Config.save();
+    transaction_complete();
+}
+
+// Just set the n'th host instead of having to do all of them.
+// This function ensures that we store a valid C string of up to MAX_HOSTNAME_LEN-1 chars, with a termninator
+void fujiDevice::fujicmd_write_host_slot_n()
+{
+    Debug_println("Fuji cmd: WRITE HOST SLOT N");
+
+    // avoids packing struct issues
+    constexpr size_t kWireSize = 1 + MAX_HOSTNAME_LEN; // 1 byte host_num + name bytes
+    std::array<std::byte, kWireSize> buf{};
+
+    if (!transaction_get(buf.data(), buf.size())) {
+        transaction_error();
+        return;
+    }
+
+    // host numbers are 0-(N-1) in FujiNet, client has already catered for this
+    const uint8_t host_num = std::to_integer<uint8_t>(buf[0]);
+    if (host_num >= MAX_HOSTS) {
+        transaction_error();
+        return;
+    }
+
+    const char* raw_name = reinterpret_cast<const char*>(buf.data() + 1);
+
+    // Require a '\0' within the fixed field (=> max visible length <= MAX_HOSTNAME_LEN-1)
+    if (std::memchr(raw_name, '\0', MAX_HOSTNAME_LEN) == nullptr) {
+        transaction_error();
+        return;
+    }
+    
+    _fnHosts[host_num].set_hostname(raw_name);
+    hostMounted[host_num] = false;
     populate_config_from_slots();
     Config.save();
     transaction_complete();

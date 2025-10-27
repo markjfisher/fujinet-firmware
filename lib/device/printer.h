@@ -79,4 +79,8 @@
 #define PRINTER_CLASS cx16Printer
 #endif
 
+#ifdef BUILD_BBC_RS232
+#include "bbc_rs232/printer.h"
+#endif
+
 #endif // DEVICE_PRINTER_H

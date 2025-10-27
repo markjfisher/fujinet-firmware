@@ -6,6 +6,9 @@
 #include "../fuji/fujiHost.h"
 #include "../fuji/fujiDisk.h"
 
+// this was being loaded transiently through printer_emulator.h
+#include "fnFsSD.h"
+
 #include "hash.h"
 
 #include <string>
@@ -170,6 +173,7 @@ public:
     void fujicmd_net_get_wifi_status();
     void fujicmd_read_host_slots();
     void fujicmd_write_host_slots();
+    void fujicmd_write_host_slot_n();
     void fujicmd_set_boot_config(bool enable);
     void fujicmd_set_boot_mode(uint8_t bootMode, std::string extension,
                                mediatype_t disk_type, DEVICE_TYPE *disk_dev);

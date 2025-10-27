@@ -37,8 +37,18 @@ elseif(FUJINET_TARGET STREQUAL "RS232")
     set(FUJINET_BUILD_BOARD fujinet-lwm-rs232)
     # fujinet.build_bus
     set(FUJINET_BUILD_BUS RS232)
+elseif(FUJINET_TARGET STREQUAL "BBC_RS232")
+    # fujinet.build_platform
+    set(FUJINET_BUILD_PLATFORM BUILD_BBC_RS232)
+    # fujinet.build_board (used by build_webui.py)
+    set(FUJINET_BUILD_BOARD fujinet-pc-bbc-rs232)
+    # fujinet.build_bus
+    set(FUJINET_BUILD_BUS BBC_RS232)
+    # mark as using new media types
+    set(FUJINET_MEDIATYPE NEW_MEDIATYPE)
+    set(FUJINET_DISKTYPE NEW_DISKTYPE)
 else()
-    message(FATAL_ERROR "Invalid target: '${FUJINET_TARGET}'. Please choose from 'RS232', 'ATARI', 'APPLE', or 'COCO'.")
+    message(FATAL_ERROR "Invalid target: '${FUJINET_TARGET}'. Please choose from 'RS232', 'ATARI', 'APPLE', 'COCO', or 'BBC_RS232'.")
 endif()
 
 if(FUJINET_TARGET STREQUAL "APPLE")
@@ -97,6 +107,17 @@ set(BUILD_DATA_DIR ${CMAKE_CURRENT_BINARY_DIR}/data)
 # -DDBUG2 to enable monitor messages for a release build
 # -DSKIP_SERVER_CERT_VERIFY does not work with MbedTLS
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D${FUJINET_BUILD_PLATFORM} -DDEV_RELAY_SLIP -DFLASH_SPIFFS -DDBUG2")
+
+# Moving across to unified MediaType system
+if(DEFINED FUJINET_MEDIATYPE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D${FUJINET_MEDIATYPE}")
+endif()
+
+# Moving across to unified DiskType system
+if(DEFINED FUJINET_DISKTYPE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D${FUJINET_DISKTYPE}")
+endif()
+
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DVERBOSE_HTTP -D__PC_BUILD_DEBUG__")
 
 # mongoose.c some compile options: -DMG_ENABLE_LINES=1 -DMG_ENABLE_DIRECTORY_LISTING=1 -DMG_ENABLE_SSI=1
@@ -257,6 +278,8 @@ set(SOURCES src/main.cpp
     lib/device/siocpm.h
     lib/modem-sniffer/modem-sniffer.h lib/modem-sniffer/modem-sniffer.cpp
     lib/media/media.h
+    lib/media/media_base.h lib/media/media_base.cpp
+    lib/device/disk_base.h lib/device/disk_base.cpp
     lib/encoding/base64.h lib/encoding/base64.cpp
     lib/encoding/hash.h lib/encoding/hash.cpp
     lib/qrcode/qrcode.h lib/qrcode/qrcode.c
@@ -401,6 +424,29 @@ if(FUJINET_TARGET STREQUAL "RS232")
     lib/device/rs232/rs232Fuji.cpp lib/device/rs232/rs232Fuji.h
     lib/device/rs232/rs232cpm.cpp lib/device/rs232/rs232cpm.h
 
+    )
+endif()
+
+if(FUJINET_TARGET STREQUAL "BBC_RS232")
+    list(APPEND SOURCES
+
+    # Shared RS232 protocol base (used by BBC and other RS232 platforms)
+    lib/bus/rs232_base/rs232_protocol.h lib/bus/rs232_base/rs232_protocol.cpp
+
+    # BBC RS232 bus implementation (inherits from rs232_base)
+    lib/bus/bbc_rs232/bbc_rs232.h lib/bus/bbc_rs232/bbc_rs232.cpp
+
+    # BBC media formats (shared across all BBC buses)
+    lib/media/bbc/mediatype_ssd.h lib/media/bbc/mediatype_ssd.cpp
+    lib/media/bbc/mediatype_dsd.h lib/media/bbc/mediatype_dsd.cpp
+
+    # BBC RS232 devices (only disk and Fuji initially)
+    lib/device/bbc_rs232/disk.h lib/device/bbc_rs232/disk.cpp
+    lib/device/bbc_rs232/bbcFuji.h lib/device/bbc_rs232/bbcFuji.cpp
+    # Additional BBC RS232 devices to be added as needed:
+    # lib/device/bbc_rs232/printer.h lib/device/bbc_rs232/printer.cpp
+    # lib/device/bbc_rs232/network.h lib/device/bbc_rs232/network.cpp
+    
     )
 endif()
 

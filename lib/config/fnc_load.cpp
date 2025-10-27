@@ -162,9 +162,11 @@ New behavior: copy from SD first if available, then read FLASH.
         case SECTION_MOUNT:
             _read_section_mount(ss, index);
             break;
+#ifdef PRINTER_CLASS
         case SECTION_PRINTER:
             _read_section_printer(ss, index);
             break;
+#endif
         case SECTION_TAPE: // Oscar put this here to handle server/path to CAS files
             _read_section_tape(ss, index);
             break;
@@ -196,7 +198,7 @@ New behavior: copy from SD first if available, then read FLASH.
             _read_section_bos(ss);
             break;
 #endif
-#ifdef BUILD_RS232
+#if defined(BUILD_RS232) || defined(BUILD_BBC_RS232)
         case SECTION_RS232:
             _read_section_rs232(ss);
             break;
