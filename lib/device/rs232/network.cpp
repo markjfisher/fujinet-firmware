@@ -5,6 +5,7 @@
  */
 
 #include "network.h"
+#include "fujiDevice.h"
 
 #include <cstring>
 #include <algorithm>
@@ -31,6 +32,7 @@
 
 using namespace std;
 
+#ifdef ESP_PLATFORM
 /**
  * Static callback function for the interrupt rate limiting timer. It sets the interruptProceed
  * flag to true. This is set to false when the interrupt is serviced.
@@ -42,6 +44,7 @@ void onTimer(void *info)
     parent->interruptProceed = !parent->interruptProceed;
     portEXIT_CRITICAL_ISR(&parent->timerMux);
 }
+#endif /* ESP_PLATFORM */
 
 /**
  * Constructor
@@ -96,8 +99,10 @@ void rs232Network::rs232_open()
 
     channelMode = PROTOCOL;
 
+#ifdef ESP_PLATFORM
     // Delete timer if already extant.
     timer_stop();
+#endif /* ESP_PLATFORM */
 
     // persist aux1/aux2 values
     open_aux1 = cmdFrame.aux1;
@@ -147,8 +152,10 @@ void rs232Network::rs232_open()
         return;
     }
 
+#ifdef ESP_PLATFORM
     // Everything good, start the interrupt timer!
     timer_start();
+#endif
 
     // Go ahead and send an interrupt, so Atari knows to get status.
     rs232_assert_interrupt();
@@ -406,7 +413,7 @@ bool rs232Network::rs232_status_channel_json(NetworkStatus *ns)
 {
     ns->connected = json_bytes_remaining > 0;
     ns->error = json_bytes_remaining > 0 ? 1 : 136;
-    ns->rxBytesWaiting = json_bytes_remaining;
+    //ns->rxBytesWaiting = json_bytes_remaining;
     return false; // for now
 }
 
@@ -415,7 +422,7 @@ bool rs232Network::rs232_status_channel_json(NetworkStatus *ns)
  */
 void rs232Network::rs232_status_channel()
 {
-    uint8_t serialized_status[4] = {0, 0, 0, 0};
+    NDeviceStatus nstatus;
     bool err = false;
 
     Debug_printf("rs232Network::rs232_status_channel(%u)\n", channelMode);
@@ -437,16 +444,17 @@ void rs232Network::rs232_status_channel()
     }
 
     // Serialize status into status bytes
-    serialized_status[0] = status.rxBytesWaiting & 0xFF;
-    serialized_status[1] = status.rxBytesWaiting >> 8;
-    serialized_status[2] = status.connected;
-    serialized_status[3] = status.error;
+    size_t avail = protocol->available();
+    avail = avail > 65535 ? 65535 : avail;
+    nstatus.avail = htole16(avail);
+    nstatus.conn = status.connected;
+    nstatus.err = status.error;
 
     Debug_printf("rs232_status_channel() - BW: %u C: %u E: %u\n",
-                 status.rxBytesWaiting, status.connected, status.error);
+                 nstatus.avail, nstatus.conn, nstatus.err);
 
     // and send to computer
-    bus_to_computer(serialized_status, sizeof(serialized_status), err);
+    bus_to_computer((uint8_t *) &nstatus, sizeof(nstatus), err);
 }
 
 /**
@@ -904,10 +912,12 @@ void rs232Network::rs232_poll_interrupt()
         protocol->status(&status);
         protocol->fromInterrupt = false;
 
-        if (status.rxBytesWaiting > 0 || status.connected == 0)
+        if (protocol->available() > 0 || status.connected == 0)
             rs232_assert_interrupt();
+#if !defined(FUJINET_OVER_USB) && defined(ESP_PLATFORM)
         else
             fnSystem.digital_write(PIN_RS232_RI,DIGI_HIGH);
+#endif /* FUJINET_OVER_USB */
 
         reservedSave = status.connected;
         errorSave = status.error;
@@ -1000,6 +1010,7 @@ void rs232Network::parse_and_instantiate_protocol()
     }
 }
 
+#ifdef ESP_PLATFORM
 /**
  * Start the Interrupt rate limiting timer
  */
@@ -1028,6 +1039,7 @@ void rs232Network::timer_stop()
         rateTimerHandle = nullptr;
     }
 }
+#endif /* ESP_PLATFORM */
 
 /**
  * We were passed a COPY arg from DOS 2. This is complex, because we need to parse the comma,
@@ -1074,8 +1086,10 @@ void rs232Network::processCommaFromDevicespec()
  * Called to pulse the PROCEED interrupt, rate limited by the interrupt timer.
  */
 void rs232Network::rs232_assert_interrupt()
-{ 
+{
+#if !defined(FUJINET_OVER_USB) && defined(ESP_PLATFORM)
     fnSystem.digital_write(PIN_RS232_RI, interruptProceed == true ? DIGI_HIGH : DIGI_LOW);
+#endif /* FUJINET_OVER_USB */
 }
 
 void rs232Network::rs232_set_translation()
@@ -1124,12 +1138,14 @@ void rs232Network::rs232_set_timer_rate()
 {
     timerRate = (cmdFrame.aux2 * 256) + cmdFrame.aux1;
 
+#ifdef ESP_PLATFORM
     // Stop extant timer
     timer_stop();
 
     // Restart timer if we're running a protocol.
     if (protocol != nullptr)
         timer_start();
+#endif /* ESP_PLATFORM */
 
     rs232_complete();
 }

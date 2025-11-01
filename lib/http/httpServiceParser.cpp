@@ -10,7 +10,11 @@
 #include "fnWiFi.h"
 #include "fsFlash.h"
 #include "httpService.h"
-#include "fuji.h"
+#include "fujiDevice.h"
+
+#ifdef BUILD_ATARI
+#include "sio/sioFuji.h"
+#endif /* BUILD_ATARI */
 
 using namespace std;
 
@@ -394,12 +398,6 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         resultstream << SYSTEM_BUS.getHighSpeedBaud();
         break;
 #endif /* BUILD_ATARI */
-#if defined(BUILD_RS232)
-#warning "Why isn't this using Config.get_serial_baud() below?"
-    case FN_SERIAL_PORT_BAUD:
-        resultstream << Config.get_rs232_baud();
-        break;
-#endif
 #ifndef ESP_PLATFORM
     case FN_SERIAL_PORT:
         resultstream << Config.get_serial_port();
@@ -452,13 +450,13 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
         break;
 #ifdef BUILD_ATARI
     case FN_PLAY_RECORD:
-        if (theFuji.cassette()->get_buttons())
+        if (platformFuji.cassette()->get_buttons())
             resultstream << "0 PLAY";
         else
             resultstream << "1 RECORD";
         break;
     case FN_PULLDOWN:
-        if (theFuji.cassette()->has_pulldown())
+        if (platformFuji.cassette()->has_pulldown())
             resultstream << "1 Pulldown Resistor";
         else
             resultstream << "0 B Button Press";
@@ -576,7 +574,7 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
     case FN_DRIVE8DEVICE:
         /* What Dx: drive (if any rotation has occurred) does each Drive Slot currently map to? */
         drive_slot = tagid - FN_DRIVE1DEVICE;
-        disk_id = (char) theFuji.get_disk_id(drive_slot);
+        disk_id = (char) theFuji->get_disk_id(drive_slot);
         if (disk_id > 0 && disk_id != (char) (0x31 + drive_slot)) {
             resultstream << " (D" << disk_id << ":)";
         }
@@ -593,7 +591,7 @@ const string fnHttpServiceParser::substitute_tag(const string &tag)
            for the TNFS host mounted on each Host Slot? */
         host_slot = tagid - FN_HOST1PREFIX;
         if (Config.get_host_type(host_slot) != fnConfig::host_types::HOSTTYPE_INVALID) {
-            resultstream << theFuji.get_host_prefix(host_slot);
+            resultstream << theFuji->get_host_prefix(host_slot);
         } else {
             resultstream << "";
         }

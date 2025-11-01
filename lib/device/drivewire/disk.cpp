@@ -6,11 +6,8 @@
 
 #include "../../include/debug.h"
 
-#include "fuji.h"
+#include "drivewireFuji.h"
 #include "utils.h"
-
-// External ref to fuji object.
-extern drivewireFuji theFuji;
 
 drivewireDisk::drivewireDisk()
 {

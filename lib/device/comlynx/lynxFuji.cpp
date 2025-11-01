@@ -1,6 +1,6 @@
-#ifdef BUILD_ADAM
+#ifdef BUILD_LYNX
 
-#include "fuji.h"
+#include "lynxFuji.h"
 
 #include <cstring>
 
@@ -12,7 +12,6 @@
 #include "fnConfig.h"
 #include "fnWiFi.h"
 #include "fsFlash.h"
-#include "led.h"
 
 #include "utils.h"
 #include "string_utils.h"
@@ -21,11 +20,10 @@
 
 #define COPY_SIZE 532
 
-adamFuji theFuji;         // global fuji device object
-adamNetwork *theNetwork;  // global network device object (temporary)
-adamNetwork *theNetwork2; // another network device
-adamPrinter *thePrinter;  // global printer
-adamSerial *theSerial;    // global serial
+lynxFuji theFuji;        // global fuji device object
+lynxNetwork *theNetwork; // global network device object (temporary)
+lynxPrinter *thePrinter; // global printer
+lynxSerial *theSerial;   // global serial
 
 using namespace std;
 
@@ -70,7 +68,7 @@ bool _validate_device_slot(uint8_t slot, const char *dmsg)
 }
 
 // Constructor
-adamFuji::adamFuji()
+lynxFuji::lynxFuji()
 {
     // Helpful for debugging
     for (int i = 0; i < MAX_HOSTS; i++)
@@ -78,60 +76,65 @@ adamFuji::adamFuji()
 }
 
 // Status
-void adamFuji::adamnet_control_status()
+void lynxFuji::comlynx_control_status()
 {
     uint8_t r[6] = {0x8F, 0x00, 0x04, 0x00, 0x00, 0x04};
-    adamnet_send_buffer(r, 6);
+    comlynx_send_buffer(r, 6);
 }
 
 // Reset FujiNet
-void adamFuji::adamnet_reset_fujinet()
+void lynxFuji::comlynx_reset_fujinet()
 {
-    adamnet_recv(); // get ck
-    Debug_println("ADAMNET RESET FUJINET");
-    adamnet_response_ack();
+    Debug_println("COMLYNX RESET FUJINET");
+
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
+         
+    comlynx_response_ack();
     fnSystem.reboot();
 }
 
 // Scan for networks
-void adamFuji::adamnet_net_scan_networks()
+void lynxFuji::comlynx_net_scan_networks()
 {
     Debug_println("Fuji cmd: SCAN NETWORKS");
 
-    adamnet_recv(); // get ck
-
-    isReady = false;
-
-    if (scanStarted == false)
-    {
-        _countScannedSSIDs = fnWiFi.scan_networks();
-        scanStarted = true;
-        setSSIDStarted = false;
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
     }
 
-    isReady = true;
+    _countScannedSSIDs = fnWiFi.scan_networks();
 
     response[0] = _countScannedSSIDs;
     response_len = 1;
 
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    Debug_printf("comlynx_net_scan_networks, _countScannedSSIDs %d\n", _countScannedSSIDs);
+
+    comlynx_response_ack();
 }
 
 // Return scanned network entry
-void adamFuji::adamnet_net_scan_result()
+void lynxFuji::comlynx_net_scan_result()
 {
     Debug_println("Fuji cmd: GET SCAN RESULT");
-    scanStarted = false;
+  
+    uint8_t n = comlynx_recv();
 
-    uint8_t n = adamnet_recv();
-
-    adamnet_recv(); // get CK
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     // Response to FUJICMD_GET_SCAN_RESULT
     struct
     {
-        char ssid[MAX_SSID_LEN + 1];
+        char ssid[MAX_SSID_LEN+1];
         uint8_t rssi;
     } detail;
 
@@ -146,28 +149,31 @@ void adamFuji::adamnet_net_scan_result()
     memcpy(response, &detail, sizeof(detail));
     response_len = sizeof(detail);
 
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    comlynx_response_ack();
 }
 
 //  Get SSID
-void adamFuji::adamnet_net_get_ssid()
+void lynxFuji::comlynx_net_get_ssid()
 {
     Debug_println("Fuji cmd: GET SSID");
 
-    adamnet_recv(); // get CK
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     // Response to FUJICMD_GET_SSID
     struct
     {
-        char ssid[MAX_SSID_LEN + 1];
+        char ssid[MAX_SSID_LEN+1];
         char password[MAX_WIFI_PASS_LEN];
     } cfg;
 
     memset(&cfg, 0, sizeof(cfg));
 
     /*
-     We memcpy instead of strcpy because technically the SSID and phasephras aren't strings and aren't null terminated,
+     We memcpy instead of strcpy because technically the SSID and phasephrase aren't strings and aren't null terminated,
      they're arrays of bytes officially and can contain any byte value - including a zero - at any point in the array.
      However, we're not consistent about how we treat this in the different parts of the code.
     */
@@ -183,74 +189,82 @@ void adamFuji::adamnet_net_get_ssid()
     memcpy(response, &cfg, sizeof(cfg));
     response_len = sizeof(cfg);
 
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    comlynx_response_ack();
 }
 
 // Set SSID
-void adamFuji::adamnet_net_set_ssid(uint16_t s)
+void lynxFuji::comlynx_net_set_ssid(uint16_t s)
 {
-    if (!fnWiFi.connected() && setSSIDStarted == false)
+    uint8_t save;
+
+    Debug_println("Fuji cmd: SET SSID");
+
+    save = comlynx_recv();
+
+    // Data for FUJICMD_SET_SSID
+    struct
     {
-        Debug_println("Fuji cmd: SET SSID");
+        char ssid[MAX_SSID_LEN+1];
+        char password[MAX_WIFI_PASS_LEN];
+    } cfg;
 
-        s--;
+    s--;
+    s--;
+    comlynx_recv_buffer((uint8_t *)&cfg, s);
 
-        // Data for FUJICMD_SET_SSID
-        struct
-        {
-            char ssid[MAX_SSID_LEN + 1];
-            char password[MAX_WIFI_PASS_LEN];
-        } cfg;
-
-        adamnet_recv_buffer((uint8_t *)&cfg, s);
-
-        adamnet_recv();
-
-        SYSTEM_BUS.start_time = esp_timer_get_time();
-        adamnet_response_ack();
-
-        bool save = true;
-
-        // URL Decode SSID/PASSWORD to handle special chars FIXME
-        // mstr::urlDecode(cfg.ssid, sizeof(cfg.ssid));
-        // mstr::urlDecode(cfg.password, sizeof(cfg.password));
-
-        Debug_printf("Connecting to net: %s password: %s\n", cfg.ssid, cfg.password);
-
-        fnWiFi.connect(cfg.ssid, cfg.password);
-        setSSIDStarted = true;
-        // Only save these if we're asked to, otherwise assume it was a test for connectivity
-        if (save)
-        {
-            Config.store_wifi_ssid(cfg.ssid, sizeof(cfg.ssid));
-            Config.store_wifi_passphrase(cfg.password, sizeof(cfg.password));
-            Config.save();
-        }
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
     }
+
+    Debug_printf("Connecting to net: %s password: %s\n", cfg.ssid, cfg.password);
+
+    fnWiFi.connect(cfg.ssid, cfg.password);
+    setSSIDStarted = true;
+
+    // Only save these if we're asked to, otherwise assume it was a test for connectivity
+    if (save)
+    {
+        Config.store_wifi_ssid(cfg.ssid, sizeof(cfg.ssid));
+        Config.store_wifi_passphrase(cfg.password, sizeof(cfg.password));
+        Config.save();
+    }
+
+    comlynx_response_ack();
 }
+
 // Get WiFi Status
-void adamFuji::adamnet_net_get_wifi_status()
+void lynxFuji::comlynx_net_get_wifi_status()
 {
-    adamnet_recv(); // Get CK
     Debug_println("Fuji cmd: GET WIFI STATUS");
+
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
+
     // WL_CONNECTED = 3, WL_DISCONNECTED = 6
     uint8_t wifiStatus = fnWiFi.connected() ? 3 : 6;
     response[0] = wifiStatus;
     response_len = 1;
 
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    comlynx_response_ack();
 }
 
 // Mount Server
-void adamFuji::adamnet_mount_host()
+void lynxFuji::comlynx_mount_host()
 {
     Debug_println("Fuji cmd: MOUNT HOST");
 
-    unsigned char hostSlot = adamnet_recv();
+    unsigned char hostSlot = comlynx_recv();
 
-    adamnet_recv(); // Get CK
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     if (hostMounted[hostSlot] == false)
     {
@@ -258,40 +272,44 @@ void adamFuji::adamnet_mount_host()
         hostMounted[hostSlot] = true;
     }
 
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    comlynx_response_ack();
 }
 
-void adamFuji::adamnet_unmount_host()
+// Mount Server
+void lynxFuji::comlynx_unmount_host()
 {
     Debug_println("Fuji cmd: UNMOUNT HOST");
 
-    unsigned char hostSlot = adamnet_recv();
+    unsigned char hostSlot = comlynx_recv();
 
-    adamnet_recv(); // get ck
-
-    if (hostMounted[hostSlot] == true)
-    {
-        _fnHosts[hostSlot].umount();
-        hostMounted[hostSlot] = false;
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
     }
 
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    if (hostMounted[hostSlot] == false)
+    {
+        _fnHosts[hostSlot].umount();
+        hostMounted[hostSlot] = true;
+    }
+
+    comlynx_response_ack();
 }
 
 // Disk Image Mount
-void adamFuji::adamnet_disk_image_mount()
+void lynxFuji::comlynx_disk_image_mount()
 {
     Debug_println("Fuji cmd: MOUNT IMAGE");
 
-    uint8_t deviceSlot = adamnet_recv();
-    uint8_t options = adamnet_recv(); // DISK_ACCESS_MODE
+    uint8_t deviceSlot = comlynx_recv();
+    uint8_t options = comlynx_recv(); // DISK_ACCESS_MODE
 
-    adamnet_recv(); // CK
-
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     // TODO: Implement FETCH?
     char flag[3] = {'r', 0, 0};
@@ -304,8 +322,6 @@ void adamFuji::adamnet_disk_image_mount()
 
     Debug_printf("Selecting '%s' from host #%u as %s on D%u:\n",
                  disk.filename, disk.host_slot, flag, deviceSlot + 1);
-
-    disk.disk_dev.host = &host;
 
     disk.fileh = host.file_open(disk.filename, disk.filename, sizeof(disk.filename), flag);
 
@@ -320,18 +336,25 @@ void adamFuji::adamnet_disk_image_mount()
     // And now mount it
     disk.disk_type = disk.disk_dev.mount(disk.fileh, disk.filename, disk.disk_size);
     disk.disk_dev.device_active = true;
+
+    comlynx_response_ack();
 }
 
 // Toggle boot config on/off, aux1=0 is disabled, aux1=1 is enabled
-void adamFuji::adamnet_set_boot_config()
+void lynxFuji::comlynx_set_boot_config()
 {
-    boot_config = adamnet_recv();
-    adamnet_recv();
+    // does nothing on Lynx -SJ
+    
+    /*
+    Debug_printf("Boot config is now %d",boot_config);
 
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    boot_config = comlynx_recv();
 
-    Debug_printf("Boot config is now %d", boot_config);
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     if (_fnDisks[0].disk_dev.is_config_device)
     {
@@ -340,34 +363,38 @@ void adamFuji::adamnet_set_boot_config()
         _fnDisks[0].reset();
         Debug_printf("Boot config unmounted slot 0");
     }
+
+    comlynx_response_ack(); */
 }
 
 // Do SIO copy
-void adamFuji::adamnet_copy_file()
+void lynxFuji::comlynx_copy_file()
 {
     uint8_t csBuf[256];
     string copySpec;
     string sourcePath;
     string destPath;
+    //uint8_t ck;
     FILE *sourceFile;
     FILE *destFile;
     char *dataBuf;
     unsigned char sourceSlot;
     unsigned char destSlot;
-    unsigned long total = 0;
+    unsigned long total=0;
 
-    Debug_printf("ADAMNET COPY FILE\n");
+    Debug_printf("COMLYNX COPY FILE\n");
 
     memset(&csBuf, 0, sizeof(csBuf));
 
-    sourceSlot = adamnet_recv();
-    destSlot = adamnet_recv();
-    adamnet_recv_buffer(csBuf, sizeof(csBuf));
-    adamnet_recv();
+    sourceSlot = comlynx_recv();
+    destSlot = comlynx_recv();
+    comlynx_recv_buffer(csBuf,sizeof(csBuf));
 
-    SYSTEM_BUS.wait_for_idle();
-    SYSTEM_BUS.write(0x9f); // ACK.
-    SYSTEM_BUS.flush();
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     dataBuf = (char *)malloc(COPY_SIZE);
 
@@ -402,7 +429,7 @@ void adamFuji::adamnet_copy_file()
         count = fread(dataBuf, 1, COPY_SIZE, sourceFile);
         fwrite(dataBuf, 1, count, destFile);
         total += count;
-        Debug_printf("Copied: %lu bytes %u %u\n", total, feof(sourceFile), ferror(sourceFile));
+        Debug_printf("Copied: %lu bytes %u %u\n",total,feof(sourceFile),ferror(sourceFile));
         taskYIELD();
     }
 
@@ -412,18 +439,95 @@ void adamFuji::adamnet_copy_file()
     free(dataBuf);
 
     Debug_printf("COPY DONE\n");
+
+    comlynx_response_ack();
+}
+
+// Mount all
+void lynxFuji::mount_all()
+{
+    bool nodisks = true; // Check at the end if no disks are in a slot and disable config
+
+    Debug_println("fujinet_mount_all()");
+
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
+
+    for (int i = 0; i < MAX_DISK_DEVICES; i++)
+    {
+        fujiDisk &disk = _fnDisks[i];
+        fujiHost &host = _fnHosts[disk.host_slot];
+        char flag[3] = {'r', 0, 0};
+
+        Debug_printf("mount_all %d '%s' from host #%u as %s on D%u:\n", i, disk.filename, disk.host_slot, flag, i + 1);
+
+        if (disk.access_mode == DISK_ACCESS_MODE_WRITE)
+            flag[1] = '+';
+
+        if (disk.host_slot != INVALID_HOST_SLOT && strlen(disk.filename) > 0)
+        {
+            nodisks = false; // We have a disk in a slot
+
+            if (host.mount() == false)
+            {
+                comlynx_response_nack();
+                return;
+            }
+
+            Debug_printf("Selecting '%s' from host #%u as %s on D%u:\n",
+                         disk.filename, disk.host_slot, flag, i + 1);
+
+            disk.fileh = host.file_open(disk.filename, disk.filename, sizeof(disk.filename), flag);
+
+            if (disk.fileh == nullptr)
+            {
+                comlynx_response_nack();
+                return;
+            }
+
+            // We've gotten this far, so make sure our bootable CONFIG disk is disabled
+            boot_config = false;
+
+            // We need the file size for loading XEX files and for CASSETTE, so get that too
+            disk.disk_size = host.file_size(disk.fileh);
+
+            // And now mount it
+            disk.disk_type = disk.disk_dev.mount(disk.fileh, disk.filename, disk.disk_size);
+        }
+    }
+
+    if (nodisks)
+    {
+        // No disks in a slot, disable config
+        boot_config = false;
+    }
+
+    // Go ahead and respond ok
+    comlynx_response_ack();
 }
 
 // Set boot mode
-void adamFuji::adamnet_set_boot_mode()
+void lynxFuji::comlynx_set_boot_mode()
 {
-    uint8_t bm = adamnet_recv();
-    adamnet_recv(); // CK
+    // does nothing on Lynx -SJ
+    
+    /*
+    uint8_t bm = comlynx_recv();
+
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     insert_boot_device(bm);
     boot_config = true;
 
-    adamnet_response_ack();
+    comlynx_response_ack();
+    */
 }
 
 char *_generate_appkey_filename(appkey *info)
@@ -437,27 +541,28 @@ char *_generate_appkey_filename(appkey *info)
 /*
  Write an "app key" to SD (ONLY!) storage.
 */
-void adamFuji::adamnet_write_app_key()
+void lynxFuji::comlynx_write_app_key()
 {
-    uint16_t creator = adamnet_recv_length();
-    uint8_t app = adamnet_recv();
-    uint8_t key = adamnet_recv();
+    uint16_t creator = comlynx_recv_length();
+    uint8_t app = comlynx_recv();
+    uint8_t key = comlynx_recv();
     uint8_t data[64];
     char appkeyfilename[30];
     FILE *fp;
 
-    snprintf(appkeyfilename, sizeof(appkeyfilename), "/FujiNet/%04hx%02hhx%02hhx.key", creator, app, key);
-
-    adamnet_recv_buffer(data, 64);
-    adamnet_recv(); // CK
-
     Debug_printf("Fuji Cmd: WRITE APPKEY %s\n", appkeyfilename);
 
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    snprintf(appkeyfilename, sizeof(appkeyfilename), "/FujiNet/%04hx%02hhx%02hhx.key", creator, app, key);
+
+    comlynx_recv_buffer(data, 64);
+
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     fp = fnSDFAT.file_open(appkeyfilename, "w");
-
     if (fp == nullptr)
     {
         Debug_printf("Could not open.\n");
@@ -466,20 +571,24 @@ void adamFuji::adamnet_write_app_key()
 
     fwrite(data, sizeof(uint8_t), sizeof(data), fp);
     fclose(fp);
+
+    comlynx_response_ack();
 }
 
 /*
  Read an "app key" from SD (ONLY!) storage
 */
-void adamFuji::adamnet_read_app_key()
+void lynxFuji::comlynx_read_app_key()
 {
-    uint16_t creator = adamnet_recv_length();
-    uint8_t app = adamnet_recv();
-    uint8_t key = adamnet_recv();
+    uint16_t creator = comlynx_recv_length();
+    uint8_t app = comlynx_recv();
+    uint8_t key = comlynx_recv();
 
-    adamnet_recv(); // CK
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     char appkeyfilename[30];
     FILE *fp;
@@ -493,30 +602,36 @@ void adamFuji::adamnet_read_app_key()
     if (fp == nullptr)
     {
         Debug_printf("Could not open key.");
-        response_len = 1; // if no file found set return length to 1 or adam hangs waiting for response
+        response_len = 1; // if no file found set return length to 1 or lynx hangs waiting for response
         return;
     }
-
+    
     response_len = fread(response, sizeof(char), 64, fp);
     fclose(fp);
+
+    comlynx_response_ack();
 }
 
 // DEBUG TAPE
-void adamFuji::debug_tape()
+void lynxFuji::debug_tape()
 {
 }
 
 // Disk Image Unmount
-void adamFuji::adamnet_disk_image_umount()
+void lynxFuji::comlynx_disk_image_umount()
 {
-    unsigned char ds = adamnet_recv();
-    adamnet_recv();
+    unsigned char ds = comlynx_recv();
 
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     _fnDisks[ds].disk_dev.unmount();
     _fnDisks[ds].reset();
+
+    comlynx_response_ack();
 }
 
 // Disk Image Rotate
@@ -524,105 +639,38 @@ void adamFuji::adamnet_disk_image_umount()
   We rotate disks my changing their disk device ID's. That prevents
   us from having to unmount and re-mount devices.
 */
-void adamFuji::image_rotate()
+void lynxFuji::image_rotate()
 {
     Debug_println("Fuji cmd: IMAGE ROTATE");
 
+    // probably won't be needed on Lynx -SJ    
+
     int count = 0;
-    string filename_save[4];
-    unsigned char hostslot_save[4];
-    unsigned char accessmode_save[4];
-    uint32_t disksize_save[4];
-    mediatype_t disktype_save[4];
-    FILE *fileh_save[4];
-    fujiHost *fujiHost_save[4];
-    MediaType *media_save[4];
-
-    filename_save[0] = string(_fnDisks[0].filename);
-    filename_save[1] = string(_fnDisks[1].filename);
-    filename_save[2] = string(_fnDisks[2].filename);
-    filename_save[3] = string(_fnDisks[3].filename);
-    hostslot_save[0] = _fnDisks[0].host_slot;
-    hostslot_save[1] = _fnDisks[1].host_slot;
-    hostslot_save[2] = _fnDisks[2].host_slot;
-    hostslot_save[3] = _fnDisks[3].host_slot;
-    accessmode_save[0] = _fnDisks[0].access_mode;
-    accessmode_save[1] = _fnDisks[1].access_mode;
-    accessmode_save[2] = _fnDisks[2].access_mode;
-    accessmode_save[3] = _fnDisks[3].access_mode;
-    disksize_save[0] = _fnDisks[0].disk_size;
-    disksize_save[1] = _fnDisks[1].disk_size;
-    disksize_save[2] = _fnDisks[2].disk_size;
-    disksize_save[3] = _fnDisks[3].disk_size;
-    disktype_save[0] = _fnDisks[0].disk_type;
-    disktype_save[1] = _fnDisks[1].disk_type;
-    disktype_save[2] = _fnDisks[2].disk_type;
-    disktype_save[3] = _fnDisks[3].disk_type;
-    fileh_save[0] = _fnDisks[0].fileh;
-    fileh_save[1] = _fnDisks[1].fileh;
-    fileh_save[2] = _fnDisks[2].fileh;
-    fileh_save[3] = _fnDisks[3].fileh;
-    fujiHost_save[0] = _fnDisks[0].host;
-    fujiHost_save[1] = _fnDisks[1].host;
-    fujiHost_save[2] = _fnDisks[2].host;
-    fujiHost_save[3] = _fnDisks[3].host;
-    media_save[0] = _fnDisks[0].disk_dev.get_media();
-    media_save[1] = _fnDisks[1].disk_dev.get_media();
-    media_save[2] = _fnDisks[2].disk_dev.get_media();
-    media_save[3] = _fnDisks[3].disk_dev.get_media();
-
-    // Find the first empty slot, stop at 8 so we don't catch the cassette
+    // Find the first empty slot
     while (_fnDisks[count].fileh != nullptr)
         count++;
 
-    Debug_printf("count is %u\n", count);
-
-    active_rotate_slot++;
-
-    if (active_rotate_slot>count-1)
-        active_rotate_slot=0;
-
     if (count > 1)
     {
-        Debug_printv("ACTIVE ROTATE SLOT %u\n",active_rotate_slot);
-
-        fnLedManager.blink(LED_BUS,active_rotate_slot+1);
-
         count--;
 
-        for (int n = 0; n < count; n++)
+        // Save the device ID of the disk in the last slot
+        int last_id = _fnDisks[count].disk_dev.id();
+
+        for (int n = count; n > 0; n--)
         {
-            _fnDisks[n].access_mode = accessmode_save[n + 1];
-            _fnDisks[n].disk_size = disksize_save[n + 1];
-            _fnDisks[n].disk_type = disktype_save[n + 1];
-            _fnDisks[n].fileh = fileh_save[n + 1];
-            strcpy(_fnDisks[n].filename, filename_save[n + 1].c_str());
-            _fnDisks[n].host = fujiHost_save[n + 1];
-            _fnDisks[n].host_slot = hostslot_save[n + 1];
-            _fnDisks[n].disk_dev.set_media(media_save[n + 1]);
+            int swap = _fnDisks[n - 1].disk_dev.id();
+            Debug_printf("setting slot %d to ID %hx\n", n, swap);
+            SYSTEM_BUS.changeDeviceId(&_fnDisks[n].disk_dev, swap);
         }
 
         // The first slot gets the device ID of the last slot
-        _fnDisks[count].access_mode = accessmode_save[0];
-        _fnDisks[count].disk_size = disksize_save[0];
-        _fnDisks[count].disk_type = disktype_save[0];
-        _fnDisks[count].fileh = fileh_save[0];
-        strcpy(_fnDisks[count].filename, filename_save[0].c_str());
-        _fnDisks[count].host = fujiHost_save[0];
-        _fnDisks[count].host_slot = hostslot_save[0];
-        _fnDisks[count].disk_dev.set_media(media_save[0]);
-
-        _populate_config_from_slots();
-    }
-
-    for (unsigned char n=0;n<4;n++)
-    {
-        Debug_printf("%u: %s\n",n,_fnDisks[n].filename);
+        SYSTEM_BUS.changeDeviceId(&_fnDisks[0].disk_dev, last_id);
     }
 }
 
 // This gets called when we're about to shutdown/reboot
-void adamFuji::shutdown()
+void lynxFuji::shutdown()
 {
     for (int i = 0; i < MAX_DISK_DEVICES; i++)
         _fnDisks[i].disk_dev.unmount();
@@ -630,26 +678,32 @@ void adamFuji::shutdown()
 
 char dirpath[256];
 
-void adamFuji::adamnet_open_directory(uint16_t s)
+void lynxFuji::comlynx_open_directory(uint16_t s)
 {
     Debug_println("Fuji cmd: OPEN DIRECTORY");
 
-    uint8_t hostSlot = adamnet_recv();
+    uint8_t hostSlot = comlynx_recv();
 
     s--;
-    s--;
+    s--;      
 
-    adamnet_recv_buffer((uint8_t *)&dirpath, s);
+    comlynx_recv_buffer((uint8_t *)&dirpath, s);
 
-    adamnet_recv(); // Grab checksum
+    Debug_printf("comlynx_open_directory: dirpath: %s\n", dirpath);
 
-    SYSTEM_BUS.start_time = esp_timer_get_time();
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
+
+    //SYSTEM_BUS.start_time = esp_timer_get_time();
 
     if (_current_open_directory_slot == -1)
     {
         // See if there's a search pattern after the directory path
         const char *pattern = nullptr;
-        int pathlen = strnlen(dirpath, sizeof(dirpath));
+        /*int pathlen = strnlen(dirpath, sizeof(dirpath));
         if (pathlen < sizeof(dirpath) - 3) // Allow for two NULLs and a 1-char pattern
         {
             pattern = dirpath + pathlen + 1;
@@ -661,18 +715,18 @@ void adamFuji::adamnet_open_directory(uint16_t s)
         // Remove trailing slash
         if (pathlen > 1 && dirpath[pathlen - 1] == '/')
             dirpath[pathlen - 1] = '\0';
-
+        */
         Debug_printf("Opening directory: \"%s\", pattern: \"%s\"\n", dirpath, pattern ? pattern : "");
 
         if (_fnHosts[hostSlot].dir_open(dirpath, pattern, 0))
         {
             _current_open_directory_slot = hostSlot;
         }
+        comlynx_response_ack();
     }
     else
     {
-        SYSTEM_BUS.start_time = esp_timer_get_time();
-        adamnet_response_ack();
+        comlynx_response_ack();
     }
 
     response_len = 1;
@@ -720,12 +774,17 @@ void _set_additional_direntry_details(fsdir_entry_t *f, uint8_t *dest, uint8_t m
     Debug_printf("\n");
 }
 
-void adamFuji::adamnet_read_directory_entry()
+void lynxFuji::comlynx_read_directory_entry()
 {
-    uint8_t maxlen = adamnet_recv();
-    uint8_t addtl = adamnet_recv();
+    Debug_printf("READ DIR ENTRY\n");
+    uint8_t maxlen = comlynx_recv();
+    uint8_t addtl = comlynx_recv();
 
-    adamnet_recv(); // Checksum
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     if (response[0] == 0x00)
     {
@@ -779,20 +838,13 @@ void adamFuji::adamnet_read_directory_entry()
         }
 
         // Hack-o-rama to add file type character to beginning of path.
-        if (maxlen == 31)
+        // I don't think we need any of this -SJ
+        /*
+        if (maxlen == 38)
         {
             memmove(&dirpath[2], dirpath, 254);
-            if (strstr(dirpath, ".DDP") || strstr(dirpath, ".ddp"))
-            {
-                dirpath[0] = 0x85;
-                dirpath[1] = 0x86;
-            }
-            else if (strstr(dirpath, ".DSK") || strstr(dirpath, ".dsk"))
-            {
-                dirpath[0] = 0x87;
-                dirpath[1] = 0x88;
-            }
-            else if (strstr(dirpath, ".ROM") || strstr(dirpath, ".rom"))
+
+            if (strstr(dirpath, ".ROM") || strstr(dirpath, ".rom"))
             {
                 dirpath[0] = 0x89;
                 dirpath[1] = 0x8a;
@@ -804,78 +856,86 @@ void adamFuji::adamnet_read_directory_entry()
             }
             else
                 dirpath[0] = dirpath[1] = 0x20;
-        }
+        }*/
 
         memset(response, 0, sizeof(response));
         memcpy(response, dirpath, maxlen);
         response_len = maxlen;
+        comlynx_response_ack();
     }
     else
     {
-        SYSTEM_BUS.start_time = esp_timer_get_time();
-        adamnet_response_ack();
+        Debug_printf("Already filled. response is %s\n",response);
+        //SYSTEM_BUS.start_time = esp_timer_get_time();
+        comlynx_response_ack();
     }
 }
 
-void adamFuji::adamnet_get_directory_position()
+void lynxFuji::comlynx_get_directory_position()
 {
     Debug_println("Fuji cmd: GET DIRECTORY POSITION");
 
     uint16_t pos = _fnHosts[_current_open_directory_slot].dir_tell();
 
-    adamnet_recv(); // ck
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     response_len = sizeof(pos);
     memcpy(response, &pos, sizeof(pos));
 
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    comlynx_response_ack();
 }
 
-void adamFuji::adamnet_set_directory_position()
+void lynxFuji::comlynx_set_directory_position()
 {
-    Debug_println("Fuji cmd: SET DIRECTORY POSITION");
-
-    // DAUX1 and DAUX2 hold the position to seek to in low/high order
     uint16_t pos = 0;
 
-    adamnet_recv_buffer((uint8_t *)&pos, sizeof(uint16_t));
+    Debug_println("Fuji cmd: SET DIRECTORY POSITION");
 
-    Debug_printf("pos is now %u", pos);
+    comlynx_recv_buffer((uint8_t *)&pos, sizeof(uint16_t));
 
-    adamnet_recv(); // ck
-
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     _fnHosts[_current_open_directory_slot].dir_seek(pos);
+    comlynx_response_ack();
+    Debug_printf("pos is now %u", pos);
 }
 
-void adamFuji::adamnet_close_directory()
+void lynxFuji::comlynx_close_directory()
 {
     Debug_println("Fuji cmd: CLOSE DIRECTORY");
 
-    adamnet_recv(); // ck
-
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     if (_current_open_directory_slot != -1)
         _fnHosts[_current_open_directory_slot].dir_close();
 
     _current_open_directory_slot = -1;
     response_len = 1;
+    comlynx_response_ack();
 }
 
 // Get network adapter configuration
-void adamFuji::adamnet_get_adapter_config()
+void lynxFuji::comlynx_get_adapter_config()
 {
     Debug_println("Fuji cmd: GET ADAPTER CONFIG");
 
-    adamnet_recv(); // ck
-
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     // Response to FUJICMD_GET_ADAPTERCONFIG
     AdapterConfig cfg;
@@ -901,33 +961,37 @@ void adamFuji::adamnet_get_adapter_config()
 
     memcpy(response, &cfg, sizeof(cfg));
     response_len = sizeof(cfg);
+
+    comlynx_response_ack();
 }
 
 //  Make new disk and shove into device slot
-void adamFuji::adamnet_new_disk()
+void lynxFuji::comlynx_new_disk()
 {
-    uint8_t hs = adamnet_recv();
-    uint8_t ds = adamnet_recv();
+    uint8_t hs = comlynx_recv();
+    uint8_t ds = comlynx_recv();
     uint32_t numBlocks;
     uint8_t *c = (uint8_t *)&numBlocks;
     uint8_t p[256];
 
-    adamnet_recv_buffer(c, sizeof(uint32_t));
-    adamnet_recv_buffer(p, 256);
+    comlynx_recv_buffer(c, sizeof(uint32_t));
+    comlynx_recv_buffer(p, 256);
 
-    adamnet_recv(); // CK
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     fujiDisk &disk = _fnDisks[ds];
     fujiHost &host = _fnHosts[hs];
 
-    if (new_disk_completed)
+    if (host.file_exists((const char *)p))
     {
-        new_disk_completed = false;
-        SYSTEM_BUS.start_time = esp_timer_get_time();
-        adamnet_response_ack();
+        //SYSTEM_BUS.start_time = esp_timer_get_time();
+        comlynx_response_ack();
         return;
     }
-
     disk.host_slot = hs;
     disk.access_mode = DISK_ACCESS_MODE_WRITE;
     strlcpy(disk.filename, (const char *)p, 256);
@@ -939,16 +1003,19 @@ void adamFuji::adamnet_new_disk()
     disk.disk_dev.write_blank(disk.fileh, numBlocks);
 
     fclose(disk.fileh);
-
-    new_disk_completed = true;
+    comlynx_response_ack();
 }
 
 // Send host slot data to computer
-void adamFuji::adamnet_read_host_slots()
+void lynxFuji::comlynx_read_host_slots()
 {
     Debug_println("Fuji cmd: READ HOST SLOTS");
 
-    adamnet_recv(); // ck
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     char hostSlots[MAX_HOSTS][MAX_HOSTNAME_LEN];
     memset(hostSlots, 0, sizeof(hostSlots));
@@ -959,22 +1026,22 @@ void adamFuji::adamnet_read_host_slots()
     memcpy(response, hostSlots, sizeof(hostSlots));
     response_len = sizeof(hostSlots);
 
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    comlynx_response_ack();
 }
 
 // Read and save host slot data from computer
-void adamFuji::adamnet_write_host_slots()
+void lynxFuji::comlynx_write_host_slots()
 {
     Debug_println("Fuji cmd: WRITE HOST SLOTS");
 
     char hostSlots[MAX_HOSTS][MAX_HOSTNAME_LEN];
-    adamnet_recv_buffer((uint8_t *)hostSlots, sizeof(hostSlots));
+    comlynx_recv_buffer((uint8_t *)hostSlots, sizeof(hostSlots));
 
-    adamnet_recv(); // ck
-
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     for (int i = 0; i < MAX_HOSTS; i++)
     {
@@ -983,30 +1050,30 @@ void adamFuji::adamnet_write_host_slots()
     }
     _populate_config_from_slots();
     Config.save();
+
+    comlynx_response_ack();
 }
 
 // Store host path prefix
-void adamFuji::adamnet_set_host_prefix()
+void lynxFuji::comlynx_set_host_prefix()
 {
 }
 
 // Retrieve host path prefix
-void adamFuji::adamnet_get_host_prefix()
+void lynxFuji::comlynx_get_host_prefix()
 {
-}
-
-// Public method to update host in specific slot
-fujiHost *adamFuji::set_slot_hostname(int host_slot, char *hostname)
-{
-    _fnHosts[host_slot].set_hostname(hostname);
-    _populate_config_from_slots();
-    return &_fnHosts[host_slot];
 }
 
 // Send device slot data to computer
-void adamFuji::adamnet_read_device_slots()
+void lynxFuji::comlynx_read_device_slots()
 {
     Debug_println("Fuji cmd: READ DEVICE SLOTS");
+
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     struct disk_slot
     {
@@ -1030,17 +1097,14 @@ void adamFuji::adamnet_read_device_slots()
 
     returnsize = sizeof(disk_slot) * MAX_DISK_DEVICES;
 
-    adamnet_recv(); // ck
-
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
-
     memcpy(response, &diskSlots, returnsize);
     response_len = returnsize;
+
+    comlynx_response_ack();
 }
 
 // Read and save disk slot data from computer
-void adamFuji::adamnet_write_device_slots()
+void lynxFuji::comlynx_write_device_slots()
 {
     Debug_println("Fuji cmd: WRITE DEVICE SLOTS");
 
@@ -1051,12 +1115,15 @@ void adamFuji::adamnet_write_device_slots()
         char filename[MAX_DISPLAY_FILENAME_LEN];
     } diskSlots[MAX_DISK_DEVICES];
 
-    adamnet_recv_buffer((uint8_t *)&diskSlots, sizeof(diskSlots));
+    comlynx_recv_buffer((uint8_t *)&diskSlots, sizeof(diskSlots));
 
-    adamnet_recv(); // ck
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    //Debug_printf("comlnyx_write_device_slots, hs:%d m:%d %s\n", diskSlots[0].hostSlot, diskSlots[0].mode, diskSlots[0].filename);
 
     // Load the data into our current device array
     for (int i = 0; i < MAX_DISK_DEVICES; i++)
@@ -1064,11 +1131,14 @@ void adamFuji::adamnet_write_device_slots()
 
     // Save the data to disk
     _populate_config_from_slots();
+    Config.mark_dirty();                             // not sure why, but I have to mark as dirty
     Config.save();
+
+    comlynx_response_ack();
 }
 
 // Temporary(?) function while we move from old config storage to new
-void adamFuji::_populate_slots_from_config()
+void lynxFuji::_populate_slots_from_config()
 {
     for (int i = 0; i < MAX_HOSTS; i++)
     {
@@ -1099,7 +1169,7 @@ void adamFuji::_populate_slots_from_config()
 }
 
 // Temporary(?) function while we move from old config storage to new
-void adamFuji::_populate_config_from_slots()
+void lynxFuji::_populate_config_from_slots()
 {
     for (int i = 0; i < MAX_HOSTS; i++)
     {
@@ -1130,44 +1200,54 @@ void adamFuji::_populate_config_from_slots()
 char f[MAX_FILENAME_LEN];
 
 // Write a 256 byte filename to the device slot
-void adamFuji::adamnet_set_device_filename(uint16_t s)
+void lynxFuji::comlynx_set_device_filename(uint16_t s)
 {
-    unsigned char ds = adamnet_recv();
+    unsigned char ds = comlynx_recv();
     s--;
     s--;
 
     Debug_printf("SET DEVICE SLOT %d filename\n", ds);
 
-    adamnet_recv_buffer((uint8_t *)&f, s);
+    comlynx_recv_buffer((uint8_t *)&f, s);
 
     Debug_printf("filename: %s\n", f);
 
-    adamnet_recv(); // CK
-
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     memcpy(_fnDisks[ds].filename, f, MAX_FILENAME_LEN);
     _populate_config_from_slots();
+
+    comlynx_response_ack();
 }
 
 // Get a 256 byte filename from device slot
-void adamFuji::adamnet_get_device_filename()
+void lynxFuji::comlynx_get_device_filename()
 {
-    unsigned char ds = adamnet_recv();
+    unsigned char ds = comlynx_recv();
 
-    adamnet_recv();
-
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     memcpy(response, _fnDisks[ds].filename, 256);
     response_len = 256;
+
+    comlynx_response_ack();
 }
 
 // Mounts the desired boot disk number
-void adamFuji::insert_boot_device(uint8_t d)
+void lynxFuji::insert_boot_device(uint8_t d)
 {
+    // This isn't needed on Lynx -SJ
+    
+    /*
+    // TODO: Change this when CONFIG is ready.
     const char *config_atr = "/autorun.ddp";
     const char *mount_all_atr = "/mount-and-boot.ddp";
     FILE *fBoot;
@@ -1187,430 +1267,409 @@ void adamFuji::insert_boot_device(uint8_t d)
 
     _fnDisks[0].disk_dev.is_config_device = true;
     _fnDisks[0].disk_dev.device_active = true;
+    */
 }
 
-void adamFuji::adamnet_enable_device()
+void lynxFuji::comlynx_enable_device()
 {
-    unsigned char d = adamnet_recv();
+    unsigned char d = comlynx_recv();
+    Debug_printf("FUJI ENABLE DEVICE %02x\n",d);
+    
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
-    Debug_printf("FUJI ENABLE DEVICE %02x\n", d);
-
-    adamnet_recv();
-
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
-
-    switch (d)
+    switch(d)
     {
-    case 0x02:
-        Config.store_printer_enabled(true);
-        break;
-    case 0x04:
-        Config.store_device_slot_enable_1(true);
-        break;
-    case 0x05:
-        Config.store_device_slot_enable_2(true);
-        break;
-    case 0x06:
-        Config.store_device_slot_enable_3(true);
-        break;
-    case 0x07:
-        Config.store_device_slot_enable_4(true);
-        break;
+        case 0x02:
+            Config.store_printer_enabled(true);
+            break;
+        case 0x04:
+            Config.store_device_slot_enable_1(true);
+            break;
+        case 0x05:
+            Config.store_device_slot_enable_2(true);
+            break;
+        case 0x06:
+            Config.store_device_slot_enable_3(true);
+            break;
+        case 0x07:
+            Config.store_device_slot_enable_4(true);
+            break;
     }
 
     Config.save();
-
     SYSTEM_BUS.enableDevice(d);
+    comlynx_response_ack();
 }
 
-void adamFuji::adamnet_disable_device()
+void lynxFuji::comlynx_disable_device()
 {
-    unsigned char d = adamnet_recv();
+    unsigned char d = comlynx_recv();
+    Debug_printf("FUJI DISABLE DEVICE %02x\n",d);
 
-    Debug_printf("FUJI DISABLE DEVICE %02x\n", d);
-
-    adamnet_recv();
-
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
-
-    switch (d)
-    {
-    case 0x02:
-        Config.store_printer_enabled(false);
-        break;
-    case 0x04:
-        Config.store_device_slot_enable_1(false);
-        break;
-    case 0x05:
-        Config.store_device_slot_enable_2(false);
-        break;
-    case 0x06:
-        Config.store_device_slot_enable_3(false);
-        break;
-    case 0x07:
-        Config.store_device_slot_enable_4(false);
-        break;
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
     }
 
-    Config.save();
+    switch(d)
+    {
+        case 0x02:
+            Config.store_printer_enabled(false);
+            break;
+        case 0x04:
+            Config.store_device_slot_enable_1(false);
+            break;
+        case 0x05:
+            Config.store_device_slot_enable_2(false);
+            break;
+        case 0x06:
+            Config.store_device_slot_enable_3(false);
+            break;
+        case 0x07:
+            Config.store_device_slot_enable_4(false);
+            break;
+    }
 
+    Config.save();    
     SYSTEM_BUS.disableDevice(d);
+    comlynx_response_ack();
 }
 
 // Initializes base settings and adds our devices to the SIO bus
-void adamFuji::setup()
+void lynxFuji::setup()
 {
-    // set up Fuji device
     _populate_slots_from_config();
 
     // Disable booting from CONFIG if our settings say to turn it off
-    boot_config = Config.get_general_config_enabled();
+    boot_config = false;
 
     // Disable status_wait if our settings say to turn it off
     status_wait_enabled = false;
-
-    SYSTEM_BUS.addDevice(&_fnDisks[0].disk_dev, ADAMNET_DEVICEID_DISK);
-    SYSTEM_BUS.addDevice(&_fnDisks[1].disk_dev, ADAMNET_DEVICEID_DISK + 1);
-    SYSTEM_BUS.addDevice(&_fnDisks[2].disk_dev, ADAMNET_DEVICEID_DISK + 2);
-    SYSTEM_BUS.addDevice(&_fnDisks[3].disk_dev, ADAMNET_DEVICEID_DISK + 3);
-
-    // Read and enable devices
-    _fnDisks[0].disk_dev.device_active = Config.get_device_slot_enable_1();
-    _fnDisks[1].disk_dev.device_active = Config.get_device_slot_enable_2();
-    _fnDisks[2].disk_dev.device_active = Config.get_device_slot_enable_3();
-    _fnDisks[3].disk_dev.device_active = Config.get_device_slot_enable_4();
-
-    if (boot_config == true)
-    {
-        Debug_printf("Config General Boot Mode: %u\n", Config.get_general_boot_mode());
-        if (Config.get_general_boot_mode() == 0)
-        {
-            FILE *f = fsFlash.file_open("/autorun.ddp");
-            _fnDisks[0].disk_dev.mount(f, "/autorun.ddp", 262144, MEDIATYPE_DDP);
-            _fnDisks[0].disk_dev.is_config_device = true;
-        }
-        else
-        {
-            FILE *f = fsFlash.file_open("/mount-and-boot.ddp");
-            _fnDisks[0].disk_dev.mount(f, "/mount-and-boot.ddp", 262144, MEDIATYPE_DDP);
-        }
-    }
-    else
-    {
-        Debug_printf("Not mounting config disk\n");
-    }
-
-    theNetwork = new adamNetwork();
-    theNetwork2 = new adamNetwork();
-    theSerial = new adamSerial();
-    SYSTEM_BUS.addDevice(theNetwork, 0x09);  // temporary.
-    SYSTEM_BUS.addDevice(theNetwork2, 0x0A); // temporary
-    SYSTEM_BUS.addDevice(&theFuji, 0x0F);    // Fuji becomes the gateway device.
+    SYSTEM_BUS.addDevice(&_fnDisks[0].disk_dev, 4);
+    SYSTEM_BUS.addDevice(&theFuji, 0x0F);   // Fuji becomes the gateway device.
+    theNetwork = new lynxNetwork();
+    SYSTEM_BUS.addDevice(theNetwork, 0x09); // temporary.
 }
 
-// Mount all
-void adamFuji::mount_all()
-{
-    bool nodisks = true; // Check at the end if no disks are in a slot and disable config
-
-    active_rotate_slot=0;
-
-    for (int i = 0; i < 4; i++)
-    {
-        fujiDisk &disk = _fnDisks[i];
-        fujiHost &host = _fnHosts[disk.host_slot];
-        char flag[3] = {'r', 0, 0};
-
-        if (i == 0 && !Config.get_device_slot_enable_1())
-        {
-            disk.disk_dev.device_active = false;
-        }
-        else if (i == 1 && !Config.get_device_slot_enable_2())
-        {
-            disk.disk_dev.device_active = false;
-        }
-        else if (i == 2 && !Config.get_device_slot_enable_3())
-        {
-            disk.disk_dev.device_active = false;
-        }
-        else if (i == 3 && !Config.get_device_slot_enable_4())
-        {
-            disk.disk_dev.device_active = false;
-        }
-        else
-        {
-
-            if (disk.access_mode == DISK_ACCESS_MODE_WRITE)
-                flag[1] = '+';
-
-            if (disk.host_slot != INVALID_HOST_SLOT && strlen(disk.filename) > 0)
-            {
-                nodisks = false; // We have a disk in a slot
-
-                if (host.mount() == false)
-                {
-                    return;
-                }
-
-                Debug_printf("Selecting '%s' from host #%u as %s on D%u:\n",
-                             disk.filename, disk.host_slot, flag, i + 1);
-
-                disk.fileh = host.file_open(disk.filename, disk.filename, sizeof(disk.filename), flag);
-
-                if (disk.fileh == nullptr)
-                {
-                    return;
-                }
-
-                // We've gotten this far, so make sure our bootable CONFIG disk is disabled
-                boot_config = false;
-
-                // We need the file size for loading XEX files and for CASSETTE, so get that too
-                disk.disk_size = host.file_size(disk.fileh);
-
-                // And now mount it
-                disk.disk_type = disk.disk_dev.mount(disk.fileh, disk.filename, disk.disk_size);
-            }
-        }
-    }
-
-    if (nodisks)
-    {
-        // No disks in a slot, disable config
-        boot_config = false;
-    }
-}
-
-void adamFuji::adamnet_random_number()
+void lynxFuji::comlynx_random_number()
 {
     int *p = (int *)&response[0];
 
-    adamnet_recv(); // CK
-
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     response_len = sizeof(int);
     *p = rand();
+    
+    comlynx_response_ack();
 }
 
-void adamFuji::adamnet_get_time()
+void lynxFuji::comlynx_get_time()
 {
     Debug_println("FUJI GET TIME");
-    adamnet_recv(); // CK
 
-    SYSTEM_BUS.start_time = esp_timer_get_time();
-    adamnet_response_ack();
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     time_t tt = time(nullptr);
 
-    setenv("TZ", Config.get_general_timezone().c_str(), 1);
+    setenv("TZ",Config.get_general_timezone().c_str(),1);
     tzset();
 
-    struct tm *now = localtime(&tt);
+    struct tm * now = localtime(&tt);
 
-        /*
-     NWD order has changed to match apple format
-     Previously:
-        response[0] = now->tm_mday;
-        response[1] = now->tm_mon;
-        response[2] = now->tm_year;
-        response[3] = now->tm_hour;
-        response[4] = now->tm_min;
-        response[5] = now->tm_sec;
-    */
+    now->tm_mon++;
+    now->tm_year-=100;
 
-        response[0] = (now->tm_year) / 100 + 19;
-        response[1] = now->tm_year % 100;
-        response[2] = now->tm_mon + 1;
-        response[3] = now->tm_mday;
-        response[4] = now->tm_hour;
-        response[5] = now->tm_min;
-        response[6] = now->tm_sec;
+    response[0] = now->tm_mday;
+    response[1] = now->tm_mon;
+    response[2] = now->tm_year;
+    response[3] = now->tm_hour;
+    response[4] = now->tm_min;
+    response[5] = now->tm_sec;
 
-        response_len = 7;
+    response_len = 6;
 
-    Debug_printf("Sending %02X %02X %02X %02X %02X %02X %02X\n", response[0], response[1], response[2], response[3], response[4], response[5], response[6]);
+    Debug_printf("Sending %02X %02X %02X %02X %02X %02X\n",now->tm_mday, now->tm_mon, now->tm_year, now->tm_hour, now->tm_min, now->tm_sec);
+    comlynx_response_ack();
 }
 
-void adamFuji::adamnet_device_enable_status()
+void lynxFuji::comlynx_device_enable_status()
 {
-    uint8_t d = adamnet_recv();
-    adamnet_recv(); // CK
+    uint8_t d = comlynx_recv();
 
-    SYSTEM_BUS.start_time = esp_timer_get_time();
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
 
     if (SYSTEM_BUS.deviceExists(d))
-        adamnet_response_ack();
+        comlynx_response_ack();
     else
-        adamnet_response_nack();
+        comlynx_response_nack();
 
-    response_len = 1;
-    response[0] = SYSTEM_BUS.deviceEnabled(d);
+    response_len=1;
+    response[0]=SYSTEM_BUS.deviceEnabled(d);
 }
 
-adamDisk *adamFuji::bootdisk()
+lynxDisk *lynxFuji::bootdisk()
 {
     return _bootDisk;
 }
 
-void adamFuji::adamnet_control_send()
+
+fujiHost *lynxFuji::set_slot_hostname(int host_slot, char *hostname)
 {
-    uint16_t s = adamnet_recv_length();
-    uint8_t c = adamnet_recv();
+
+    _fnHosts[host_slot].set_hostname(hostname);
+    _populate_config_from_slots();
+
+    return &_fnHosts[host_slot];
+}
+
+
+void lynxFuji::comlynx_hello()
+{
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
+
+    const char resp[] = "HI FROM FUJINET!\n";
+    response_len = strlen(resp);
+    memcpy(response,resp,response_len);
+
+    Debug_printf("lynxFuji::comlynx_hello()\n");
+    comlynx_response_ack();
+
+    Debug_printf("HELLO FROM LYNX.\n");
+
+}
+
+// Set UDP Stream HOST & PORT and start it
+void lynxFuji::comlynx_enable_udpstream(uint16_t s)
+{
+    char host[128];
+    
+    s--;
+
+    // Receive port #
+    unsigned short port;
+
+    port  = comlynx_recv() & 0xFF;
+    s--;
+    port |= comlynx_recv() << 8;
+    s--;
+
+    Debug_printf("comlynx_enable_udpstream(); p=%u - s=%u",port,s);
+
+    // Receive host
+    comlynx_recv_buffer((uint8_t *)host,s);
+
+    // Get packet checksum
+    if (!comlynx_recv_ck()) {
+        comlynx_response_nack();
+        return;
+    }
+
+    // Acknowledge
+    comlynx_response_ack();
+
+    // Save the host and port
+    Config.store_udpstream_host(host);
+    Config.store_udpstream_port(port);
+    Config.save();
+
+    // Start the UDP Stream
+    SYSTEM_BUS.setUDPHost(host, port);
+}
+
+void lynxFuji::comlynx_control_send()
+{
+    // Reset the recvbuffer
+    recvbuffer_len = 0;         // happens in recv_length, but may remove from there -SJ
+    
+    uint16_t s = comlynx_recv_length();
+    uint8_t c = comlynx_recv();
 
     switch (c)
     {
     case FUJICMD_RESET:
-        adamnet_reset_fujinet();
+        comlynx_reset_fujinet();
         break;
     case FUJICMD_GET_SSID:
-        adamnet_net_get_ssid();
+        comlynx_net_get_ssid();
         break;
     case FUJICMD_SCAN_NETWORKS:
-        adamnet_net_scan_networks();
+        comlynx_net_scan_networks();
         break;
     case FUJICMD_GET_SCAN_RESULT:
-        adamnet_net_scan_result();
+        comlynx_net_scan_result();
         break;
     case FUJICMD_SET_SSID:
-        adamnet_net_set_ssid(s);
+        comlynx_net_set_ssid(s);
         break;
     case FUJICMD_GET_WIFISTATUS:
-        adamnet_net_get_wifi_status();
+        comlynx_net_get_wifi_status();
         break;
     case FUJICMD_MOUNT_HOST:
-        adamnet_mount_host();
+        comlynx_mount_host();
         break;
     case FUJICMD_UNMOUNT_HOST:
-        adamnet_unmount_host();
+        comlynx_unmount_host();
         break;
     case FUJICMD_MOUNT_IMAGE:
-        adamnet_disk_image_mount();
+        comlynx_disk_image_mount();
         break;
     case FUJICMD_OPEN_DIRECTORY:
-        adamnet_open_directory(s);
+        comlynx_open_directory(s);
         break;
     case FUJICMD_READ_DIR_ENTRY:
-        adamnet_read_directory_entry();
+        comlynx_read_directory_entry();
         break;
     case FUJICMD_CLOSE_DIRECTORY:
-        adamnet_close_directory();
+        comlynx_close_directory();
         break;
     case FUJICMD_READ_HOST_SLOTS:
-        adamnet_read_host_slots();
+        comlynx_read_host_slots();
         break;
     case FUJICMD_WRITE_HOST_SLOTS:
-        adamnet_write_host_slots();
+        comlynx_write_host_slots();
         break;
     case FUJICMD_READ_DEVICE_SLOTS:
-        adamnet_read_device_slots();
+        comlynx_read_device_slots();
         break;
     case FUJICMD_WRITE_DEVICE_SLOTS:
-        adamnet_write_device_slots();
+        comlynx_write_device_slots();
         break;
     case FUJICMD_UNMOUNT_IMAGE:
-        adamnet_disk_image_umount();
+        comlynx_disk_image_umount();
         break;
     case FUJICMD_GET_ADAPTERCONFIG:
-        adamnet_get_adapter_config();
+        comlynx_get_adapter_config();
         break;
     case FUJICMD_NEW_DISK:
-        adamnet_new_disk();
+        comlynx_new_disk();
         break;
     case FUJICMD_GET_DIRECTORY_POSITION:
-        adamnet_get_directory_position();
+        comlynx_get_directory_position();
         break;
     case FUJICMD_SET_DIRECTORY_POSITION:
-        adamnet_set_directory_position();
+        comlynx_set_directory_position();
         break;
     case FUJICMD_SET_DEVICE_FULLPATH:
-        adamnet_set_device_filename(s);
+        comlynx_set_device_filename(s);
         break;
     case FUJICMD_GET_DEVICE_FULLPATH:
-        adamnet_get_device_filename();
+        comlynx_get_device_filename();
         break;
     case FUJICMD_CONFIG_BOOT:
-        adamnet_set_boot_config();
+        comlynx_set_boot_config();
         break;
     case FUJICMD_ENABLE_DEVICE:
-        adamnet_enable_device();
+        comlynx_enable_device();
         break;
     case FUJICMD_DISABLE_DEVICE:
-        adamnet_disable_device();
+        comlynx_disable_device();
         break;
     case FUJICMD_MOUNT_ALL:
         mount_all();
         break;
     case FUJICMD_SET_BOOT_MODE:
-        adamnet_set_boot_mode();
+        comlynx_set_boot_mode();
         break;
     case FUJICMD_WRITE_APPKEY:
-        adamnet_write_app_key();
+        comlynx_write_app_key();
         break;
     case FUJICMD_READ_APPKEY:
-        adamnet_read_app_key();
+        comlynx_read_app_key();
         break;
     case FUJICMD_RANDOM_NUMBER:
-        adamnet_random_number();
+        comlynx_random_number();
         break;
     case FUJICMD_GET_TIME:
-        adamnet_get_time();
+        comlynx_get_time();
         break;
     case FUJICMD_DEVICE_ENABLE_STATUS:
-        adamnet_device_enable_status();
+        comlynx_device_enable_status();
         break;
     case FUJICMD_COPY_FILE:
-        adamnet_copy_file();
+        comlynx_copy_file();
+        break;
+    case FUJICMD_ENABLE_UDPSTREAM:
+        comlynx_enable_udpstream(s);
+        break;
+    case 0x01:
+        comlynx_hello();
         break;
     }
 }
 
-void adamFuji::adamnet_control_clr()
+void lynxFuji::comlynx_control_clr()
 {
-    adamnet_send(0xBF);
-    adamnet_send_length(response_len);
-    adamnet_send_buffer(response, response_len);
-    adamnet_send(adamnet_checksum(response, response_len));
-    adamnet_recv(); // get the ack.
+    uint8_t b; 
+    
+    comlynx_send(0xBF);
+    comlynx_send_length(response_len);
+    comlynx_send_buffer(response, response_len);
+    comlynx_send(comlynx_checksum(response, response_len));
+    b = comlynx_recv();             // get the ack or nack
+    // ignore response from Lynx, if they didn't receive the data properly
+    // they should resend the entire command -SJ
+    
+    Debug_printf("comlynx_control_clr: %02X\n", b);
+    
+    // Reset response buffer    
     memset(response, 0, sizeof(response));
     response_len = 0;
 }
 
-void adamFuji::adamnet_process(uint8_t b)
+void lynxFuji::comlynx_process(uint8_t b)
 {
     unsigned char c = b >> 4;
-
+    //Debug_printf("%02x \n",c);
+    
     switch (c)
     {
     case MN_STATUS:
-        adamnet_control_status();
+        comlynx_control_status();
         break;
     case MN_CLR:
-        adamnet_control_clr();
+        comlynx_control_clr();
         break;
     case MN_RECEIVE:
-        adamnet_response_ack();
+        comlynx_response_ack();
         break;
     case MN_SEND:
-        adamnet_control_send();
+        comlynx_control_send();
         break;
     case MN_READY:
-        adamnet_control_ready();
+        comlynx_control_ready();
         break;
     }
 }
 
-int adamFuji::get_disk_id(int drive_slot)
+int lynxFuji::get_disk_id(int drive_slot)
 {
     return _fnDisks[drive_slot].disk_dev.id();
 }
 
-std::string adamFuji::get_host_prefix(int host_slot)
+std::string lynxFuji::get_host_prefix(int host_slot)
 {
     return _fnHosts[host_slot].get_prefix();
 }
 
-#endif /* BUILD_ADAM */
+#endif /* BUILD_LYNX */

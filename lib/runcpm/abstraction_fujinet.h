@@ -22,7 +22,10 @@
 #include "fnTcpServer.h"
 #include "fnTcpClient.h"
 
-#include "fuji.h"
+#include "fujiDevice.h"
+
+// Why is CP/M writing directly to the SYSTEM_BUS?
+#define FN_CPM_LINK SYSTEM_BUS
 
 #define HostOS 0x07 // FUJINET
 
@@ -600,8 +603,8 @@ uint8_t bdos_readHostSlots(uint16_t addr)
         char hostSlots[8][32];
         memset(hostSlots, 0, sizeof(hostSlots));
 
-        for (int i = 0; i < 8; i++)
-                strlcpy(hostSlots[i], theFuji.get_hosts(i)->get_hostname(), 32);
+	for (int i = 0; i < 8; i++)
+		strlcpy(hostSlots[i], theFuji->get_host(i)->get_hostname(), 32);
 
         memset(&RAM[addr], 0, sizeof(hostSlots));
         memcpy(&RAM[addr], &hostSlots, sizeof(hostSlots));
@@ -610,25 +613,25 @@ uint8_t bdos_readHostSlots(uint16_t addr)
 
 uint8_t bdos_readDeviceSlots(uint16_t addr)
 {
-        struct disk_slot
-        {
-                uint8_t hostSlot;
-                uint8_t mode;
-                char filename[MAX_DISPLAY_FILENAME_LEN];
-        };
-        disk_slot diskSlots[MAX_DISK_DEVICES];
+	struct disk_slot
+	{
+		uint8_t hostSlot;
+		uint8_t mode;
+		char filename[MAX_DISPLAY_FILENAME_LEN];
+	};
+	disk_slot diskSlots[MAX_DISK_DEVICES];
 
-        // Load the data from our current device array
-        for (int i = 0; i < MAX_DISK_DEVICES; i++)
-        {
-                diskSlots[i].mode = theFuji.get_disks(i)->access_mode;
-                diskSlots[i].hostSlot = theFuji.get_disks(i)->host_slot;
-                strlcpy(diskSlots[i].filename, theFuji.get_disks(i)->filename, MAX_DISPLAY_FILENAME_LEN);
-        }
+	// Load the data from our current device array
+	for (int i = 0; i < MAX_DISK_DEVICES; i++)
+	{
+		diskSlots[i].mode = theFuji->get_disk(i)->access_mode;
+		diskSlots[i].hostSlot = theFuji->get_disk(i)->host_slot;
+		strlcpy(diskSlots[i].filename, theFuji->get_disk(i)->filename, MAX_DISPLAY_FILENAME_LEN);
+	}
 
-        // Transfer to Z80 RAM.
-        memset(&RAM[addr], 0, sizeof(diskSlots));
-        memcpy(&RAM[addr], &diskSlots, sizeof(diskSlots));
+	// Transfer to Z80 RAM.
+	memset(&RAM[addr], 0, sizeof(diskSlots));
+	memcpy(&RAM[addr], &diskSlots, sizeof(diskSlots));
 
         return 0;
 }

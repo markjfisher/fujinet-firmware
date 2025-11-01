@@ -5,8 +5,9 @@
 #include "rs232cpm.h"
 
 #include "fnSystem.h"
+#include "IOChannel.h"
 #include "fnWiFi.h"
-#include "fuji.h"
+#include "rs232Fuji.h"
 #include "fnFS.h"
 #include "fnFsSD.h"
 

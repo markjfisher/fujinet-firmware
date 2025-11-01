@@ -1382,13 +1382,13 @@ void iwmModem::iwm_open(iwm_decoded_cmd_t cmd)
 void iwmModem::iwm_close(iwm_decoded_cmd_t cmd)
 {
     Debug_printf("\nModem: Close\n");
-    
+
     if (tcpClient.connected() == true)
     {
         tcpClient.flush();
         tcpClient.stop();
     }
-    
+
     send_reply_packet(SP_ERR_NOERROR);
 }
 
@@ -1410,7 +1410,7 @@ void iwmModem::iwm_read(iwm_decoded_cmd_t cmd)
     {
         if (mw < numbytes) //if there are less than requested, just send what we have
         {
-            numbytes = mw;  
+            numbytes = mw;
         }
 
         data_len = 0;

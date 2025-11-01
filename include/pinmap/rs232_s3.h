@@ -39,4 +39,4 @@
 
 #include "common.h"
 
-#endif /* PINMAP_RS232_REV0 */
+#endif /* PINMAP_RS232_S3 */

@@ -6,11 +6,12 @@
 
 #include "../../include/debug.h"
 
-#include "fuji.h"
+#include "drivewire/drivewireFuji.h"
 #include "udpstream.h"
 #include "modem.h"
 #include "cassette.h"
 #include "printer.h"
+#include "network.h"
 #include "drivewire/dload.h"
 #include "../../lib/device/drivewire/cpm.h"
 
@@ -113,13 +114,8 @@ void systemBus::op_reset()
     Debug_printv("op_reset()");
 
     // When a reset transaction occurs, set the mounted disk image to the CONFIG disk image.
-    theFuji.boot_config = true;
-    theFuji.insert_boot_device(Config.get_general_boot_mode());
-    if (pNamedObjFp != NULL)
-    {
-        fclose(pNamedObjFp);
-        pNamedObjFp = NULL;
-    }
+    platformFuji.boot_config = true;
+    platformFuji.insert_boot_device(Config.get_general_boot_mode(), IMAGE_EXTENSION, MEDIATYPE_UNKNOWN, &platformFuji.bootdisk);
 }
 
 void systemBus::op_readex()
@@ -140,8 +136,12 @@ void systemBus::op_readex()
 
     Debug_printf("OP_READ: DRIVE %3u - SECTOR %8lu\n", drive_num, lsn);
 
-    // named object support for dragon
-    if (strlen((const char*)szNamedMount))
+    if (platformFuji.boot_config && drive_num == 0)
+        d = &platformFuji.bootdisk;
+    else
+        d = &platformFuji.get_disk(drive_num)->disk_dev;
+
+    if (!d)
     {
         Debug_printf("op_readex: boot from named object %s\r\n", szNamedMount);
         Debug_printf("OP_READEX: DRIVE %3u - SECTOR %8lu\n", drive_num, lsn);
@@ -267,9 +267,8 @@ void systemBus::op_readex()
 
     // finally, send the transaction status
     _port->write(rc);
-    _port->flushOutput();
+    _port->flush();
 }
-
 
 void systemBus::op_write()
 {
@@ -306,7 +305,7 @@ void systemBus::op_write()
 
     Debug_printf("OP_WRITE DRIVE %3u - SECTOR %8lu\n", drive_num, lsn);
 
-    d = &theFuji.get_disks(drive_num)->disk_dev;
+    d = &platformFuji.get_disk(drive_num)->disk_dev;
 
     if (!d)
     {
@@ -334,7 +333,7 @@ void systemBus::op_write()
 
 void systemBus::op_fuji()
 {
-    theFuji.process();
+    platformFuji.process();
 }
 
 void systemBus::op_cpm()
@@ -514,23 +513,6 @@ void systemBus::op_print()
     _printerdev->write(_port->read());
 }
 
-void systemBus::op_namedobj_mnt()
-{
-    uint8_t namelen;
-    uint16_t i;
-
-    namelen = _port->read();
-    memset(szNamedMount,0,sizeof(szNamedMount));
-    for (i=0; i<namelen;i++)
-        szNamedMount[i]= _port->read();
-
-    _port->write(0x01);
-    Debug_printf("op_namedobj_mnt: %s\r\n", szNamedMount);
-
-    // treat this event as a reset...
-    op_reset();
-}
-
 // Read and process a command frame from DRIVEWIRE
 void systemBus::_drivewire_process_cmd()
 {
@@ -668,10 +650,16 @@ void systemBus::service()
     // network device.
     if (!_netDev.empty())
     {
+        bool hasUpdate = false;
         for (auto it=_netDev.begin(); it != _netDev.end(); ++it)
         {
-            it->second->poll_interrupt();
+            if (it->second->poll_interrupt())
+            {
+                hasUpdate = true;
+                break;
+            }
         }
+        _port->setDSR(!hasUpdate);
     }
 
     if (_port->available())
@@ -852,5 +840,20 @@ void systemBus::setBaudrate(int baud)
     Debug_printf("Changing baudrate from %d to %d\n", _drivewireBaud, baud);
     _drivewireBaud = baud;
     //_modemDev->get_uart()->set_baudrate(baud); // TODO COME BACK HERE.
+}
+
+void systemBus::changeDeviceId(void *pDevice, int device_id)
+{
+    return;
+}
+
+void systemBus::setUDPHost(const char *newhost, int port)
+{
+    return;
+}
+
+void systemBus::setUltraHigh(bool _enable, int _ultraHighBaud)
+{
+    return;
 }
 #endif               /* BUILD_COCO */

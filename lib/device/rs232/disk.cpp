@@ -6,7 +6,7 @@
 
 #include "../../include/debug.h"
 
-#include "fuji.h"
+#include "rs232Fuji.h"
 #include "utils.h"
 
 #define RS232_DISKCMD_FORMAT 0x21
@@ -26,9 +26,6 @@
 
 #define RS232_DISKCMD_PERCOM_READ 0x4E
 #define RS232_DISKCMD_PERCOM_WRITE 0x4F
-
-// External ref to fuji object.
-extern rs232Fuji theFuji;
 
 rs232Disk::rs232Disk()
 {
@@ -210,7 +207,7 @@ mediatype_t rs232Disk::mount(fnFile *f, const char *filename, uint32_t disksize,
 
     // Determine MediaType based on filename extenrs232n
     if (disk_type == MEDIATYPE_UNKNOWN && filename != nullptr)
-        disk_type = MediaType::discover_disktype(filename);
+        disk_type = MediaType::discover_mediatype(filename);
 
     // Now mount based on MediaType
     switch (disk_type)

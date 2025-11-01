@@ -50,54 +50,24 @@ FN_HISPEED_INDEX=40 //  18,806 (18,806) baud
 #define COMMAND_FRAME_SPEED_CHANGE_THRESHOLD 2
 #define SERIAL_TIMEOUT 300
 
-#define SIO_DEVICEID_DISK 0x31
-#define SIO_DEVICEID_DISK_LAST 0x3F
-
-#define SIO_DEVICEID_PRINTER 0x40
-#define SIO_DEVICEID_PRINTER_LAST 0x43
-
-#define SIO_DEVICEID_FN_VOICE 0x43
-
-#define SIO_DEVICEID_APETIME 0x45
-
-#define SIO_DEVICEID_TYPE3POLL 0x4F
-
-#define SIO_DEVICEID_RS232 0x50
-#define SIO_DEVICEID_RS2323_LAST 0x53
-
-#define SIO_DEVICEID_CASSETTE 0x5F
-
-#define SIO_DEVICEID_FUJINET 0x70
-#define SIO_DEVICEID_FN_NETWORK 0x71
-#define SIO_DEVICEID_FN_NETWORK_LAST 0x78
-
-#define SIO_DEVICEID_MIDI 0x99
-
-// Not used, but for reference:
-#define SIO_DEVICEID_SIO2BT_NET 0x4E
-#define SIO_DEVICEID_SIO2BT_SMART 0x45 // Doubles as APETime and "High Score Submission" to URL
-#define SIO_DEVICEID_APE 0x45
-#define SIO_DEVICEID_ASPEQT 0x46
-#define SIO_DEVICEID_PCLINK 0x6F
-
-#define SIO_DEVICEID_CPM 0x5A
-
-union cmdFrame_t
+typedef struct
 {
-    struct
-    {
-        uint8_t device;
-        uint8_t comnd;
-        uint8_t aux1;
-        uint8_t aux2;
-        uint8_t cksum;
-    };
-    struct
-    {
+    union {
+        struct {
+            uint8_t device;
+            uint8_t comnd;
+            union {
+                struct {
+                    uint8_t aux1;
+                    uint8_t aux2;
+                };
+                uint16_t aux12;
+            };
+        };
         uint32_t commanddata;
-        uint8_t checksum;
-    } __attribute__((packed));
-};
+    };
+    uint8_t cksum;
+} __attribute__((packed)) cmdFrame_t;
 
 // helper functions
 uint8_t sio_checksum(uint8_t *buf, unsigned short len);
@@ -225,6 +195,8 @@ public:
      * @brief is device active (turned on?)
      */
     bool device_active = true;
+    bool switched = false; //indicate disk switched condition
+    bool readonly = true;  //write protected
 
     /**
      * @brief status wait counter

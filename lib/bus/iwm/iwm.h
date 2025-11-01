@@ -199,7 +199,7 @@ struct iwm_device_info_block_t
   void print_packet(uint8_t* data);
 //#endif
 
-class iwmDevice
+class virtualDevice
 {
 friend systemBus; // put here for prototype, not sure if will need to keep it
 
@@ -211,6 +211,8 @@ protected:
   uint8_t _devnum; // assigned by Apple II during INIT
   bool _initialized;
 
+  uint8_t status_wait_count = 5;
+    
    // void send_data_packet(); //encode smartport 512 byte data packet
   // void encode_data_packet(uint16_t num = 512); //encode smartport "num" byte data packet
   void send_init_reply_packet(uint8_t source, uint8_t status);
@@ -274,7 +276,7 @@ class systemBus
 private:
 
 
-  iwmDevice *_activeDev = nullptr;
+  virtualDevice *_activeDev = nullptr;
 
   iwmFuji *_fujiDev = nullptr;
   iwmModem *_modemDev = nullptr;
@@ -319,7 +321,7 @@ private:
   int new_track = -1;
 
 public:
-  std::forward_list<iwmDevice *> _daisyChain;
+  std::forward_list<virtualDevice *> _daisyChain;
 
   cmdPacket_t command_packet;
   bool iwm_decode_data_packet(uint8_t *a, int &n);
@@ -336,23 +338,26 @@ public:
   void shutdown();
 
   int numDevices();
-  void addDevice(iwmDevice *pDevice, iwm_fujinet_type_t deviceType); // todo: probably get called by handle_init()
-  void remDevice(iwmDevice *pDevice);
-  iwmDevice *deviceById(int device_id);
-  iwmDevice *firstDev() {return _daisyChain.front();}
-  uint8_t* devBuffer() {return (uint8_t *)iwmDevice::data_buffer;}
+  void addDevice(virtualDevice *pDevice, iwm_fujinet_type_t deviceType); // todo: probably get called by handle_init()
+  void remDevice(virtualDevice *pDevice);
+  virtualDevice *deviceById(int device_id);
+  virtualDevice *firstDev() {return _daisyChain.front();}
+  uint8_t* devBuffer() {return (uint8_t *)virtualDevice::data_buffer;}
   void enableDevice(uint8_t device_id);
   void disableDevice(uint8_t device_id);
-  void changeDeviceId(iwmDevice *p, int device_id);
+  void changeDeviceId(virtualDevice *p, int device_id);
   iwmPrinter *getPrinter() { return _printerdev; }
   bool shuttingDown = false;                                  // TRUE if we are in shutdown process
   bool getShuttingDown() { return shuttingDown; };
   bool en35Host = false; // TRUE if we are connected to a host that supports the /EN35 signal
 
+  // For compatibility with other platforms, used by fujiDevice.cpp
+  void setUDPHost(const char *newhost, int port);
+  void setUltraHigh(bool _enable, int _ultraHighBaud = 0);
 };
 
 extern systemBus SYSTEM_BUS;
 
-#define IWM_ACTIVE_DISK2 ((iwmDisk2 *) theFuji.get_disk_dev(MAX_SP_DEVICES + diskii_xface.iwm_active_drive() - 1))
+#define IWM_ACTIVE_DISK2 ((iwmDisk2 *) theFuji->get_disk_dev(MAX_SPDISK_DEVICES + diskii_xface.iwm_active_drive() - 1))
 #endif // guard
 #endif /* BUILD_APPLE */

@@ -1,6 +1,7 @@
 #ifdef BUILD_RS232
 
 #include "modem.h"
+#include "devices.h"
 
 #include "../../../include/debug.h"
 #include "../../../include/atascii.h"
@@ -61,7 +62,7 @@ static void _telnet_event_handler(telnet_t *telnet, telnet_event_t *ev, void *us
     {
     case TELNET_EV_DATA:
         if (ev->data.size && SYSTEM_BUS.write((uint8_t *)ev->data.buffer, ev->data.size) != ev->data.size)
-            Debug_printf("_telnet_event_handler(%d) - Could not write complete buffer to RS232.\n", ev->type);
+            Debug_printf("_telnet_event_handler(%d) - Could not write complete buffer to SYSTEM_BUS.\n", ev->type);
         break;
     case TELNET_EV_SEND:
         modem->get_tcp_client().write((uint8_t *)ev->data.buffer, ev->data.size);
@@ -151,7 +152,7 @@ void rs232Modem::rs232_poll_3(uint8_t device, uint8_t aux1, uint8_t aux2)
         return;
     }
     // When AUX1 = 0x52 'R' and AUX == 1 or DEVICE == x050, it's a directed poll to "R1:"
-    if ((aux1 == 0x52 && aux2 == 0x01) || device == RS232_DEVICEID_RS232)
+    if ((aux1 == 0x52 && aux2 == 0x01) || device == FUJI_DEVICEID_SERIAL)
     {
         Debug_print("MODEM TYPE 4 \"R1:\" DIRECTED POLL\n");
         respond = true;
@@ -176,7 +177,7 @@ void rs232Modem::rs232_poll_3(uint8_t device, uint8_t aux1, uint8_t aux2)
     uint8_t type4response[4];
     type4response[0] = LOBYTE_FROM_UINT16(fsize);
     type4response[1] = HIBYTE_FROM_UINT16(fsize);
-    type4response[2] = RS232_DEVICEID_RS232;
+    type4response[2] = FUJI_DEVICEID_SERIAL;
     type4response[3] = 0;
 
     fnSystem.delay_microseconds(DELAY_FIRMWARE_DELIVERY);
@@ -530,7 +531,7 @@ void rs232Modem::rs232_stream()
       RESPONSE
       Payload: 9 bytes to configure POKEY baud rate ($D200-$D208)
     */
-    char response[] = {0x28, 0xA0, 0x00, 0xA0, 0x28, 0xA0, 0x00, 0xA0, 0x78}; // 19200
+    uint8_t response[] = {0x28, 0xA0, 0x00, 0xA0, 0x28, 0xA0, 0x00, 0xA0, 0x78}; // 19200
 
     switch (modemBaud)
     {
@@ -1678,8 +1679,8 @@ void rs232Modem::rs232_handle_modem()
 
             // Read from serial, the amount available up to
             // maximum size of the buffer
-            int rs232BytesRead = SYSTEM_BUS.read(&txBuf[0], (rs232BytesAvail > TX_BUF_SIZE)
-                                                 ? TX_BUF_SIZE : rs232BytesAvail);
+            int rs232BytesRead = SYSTEM_BUS.read(&txBuf[0], //RS232_UART.read(&txBuf[0],
+                                                   (rs232BytesAvail > TX_BUF_SIZE) ? TX_BUF_SIZE : rs232BytesAvail);
 
             // Disconnect if going to AT mode with "+++" sequence
             for (int i = 0; i < (int)rs232BytesRead; i++)

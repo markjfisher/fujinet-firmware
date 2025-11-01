@@ -4,7 +4,7 @@
 
 #include "../../include/debug.h"
 
-#include "fuji.h"
+#include "sio/sioFuji.h"
 #include "udpstream.h"
 #include "modem.h"
 #include "siocpm.h"
@@ -208,7 +208,7 @@ void systemBus::_sio_process_cmd()
     // Read CMD frame
     cmdFrame_t tempFrame;
     tempFrame.commanddata = 0;
-    tempFrame.checksum = 0;
+    tempFrame.cksum = 0;
 
     if (SYSTEM_BUS.read((uint8_t *)&tempFrame, sizeof(tempFrame)) != sizeof(tempFrame))
     {
@@ -248,7 +248,7 @@ void systemBus::_sio_process_cmd()
 #endif
 
     uint8_t ck = sio_checksum((uint8_t *)&tempFrame.commanddata, sizeof(tempFrame.commanddata)); // Calculate Checksum
-    if (ck == tempFrame.checksum)
+    if (ck == tempFrame.cksum)
     {
 #ifndef ESP_PLATFORM
         // reset counter if checksum was correct
@@ -256,7 +256,7 @@ void systemBus::_sio_process_cmd()
 #endif
         if (tempFrame.device == SIO_DEVICEID_DISK && _fujiDev != nullptr && _fujiDev->boot_config)
         {
-            _activeDev = _fujiDev->bootdisk();
+            _activeDev = &_fujiDev->bootdisk;
             if (_activeDev->status_wait_count > 0 && tempFrame.comnd == 'R' && _fujiDev->status_wait_enabled)
             {
                 Debug_printf("Disabling CONFIG boot.\n");
@@ -267,7 +267,7 @@ void systemBus::_sio_process_cmd()
             {
                 Debug_println("FujiNet CONFIG boot");
                 // handle command
-                _activeDev->sio_process(tempFrame.commanddata, tempFrame.checksum);
+                _activeDev->sio_process(tempFrame.commanddata, tempFrame.cksum);
             }
         }
         else
@@ -283,7 +283,7 @@ void systemBus::_sio_process_cmd()
                         Debug_printf("Sending TYPE3 poll to dev %x\n", devicep->_devnum);
                         _activeDev = devicep;
                         // handle command
-                        _activeDev->sio_process(tempFrame.commanddata, tempFrame.checksum);
+                        _activeDev->sio_process(tempFrame.commanddata, tempFrame.cksum);
                     }
                 }
             }
@@ -297,7 +297,7 @@ void systemBus::_sio_process_cmd()
                     {
                         _activeDev = devicep;
                         // handle command
-                        _activeDev->sio_process(tempFrame.commanddata, tempFrame.checksum);
+                        _activeDev->sio_process(tempFrame.commanddata, tempFrame.cksum);
                     }
                 }
             }
@@ -337,7 +337,7 @@ void systemBus::_sio_process_queue()
         {
         case SIOMSG_DISKSWAP:
             if (_fujiDev != nullptr)
-                _fujiDev->image_rotate();
+                _fujiDev->fujicmd_image_rotate();
             break;
         case SIOMSG_DEBUG_TAPE:
             if (_fujiDev != nullptr)

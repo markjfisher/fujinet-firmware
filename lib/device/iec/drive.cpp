@@ -12,7 +12,7 @@
 
 #include "make_unique.h"
 
-#include "fuji.h"
+#include "iecFuji.h"
 #include "fnFsSD.h"
 #include "led.h"
 #include "utils.h"
@@ -20,6 +20,7 @@
 
 #include "meat_media.h"
 
+using std::string;
 
 // Buffering data when reading/writing streams because during regular (non-fastloader)
 // tranmissions, the read/write functions are called for each single byte at a time and
