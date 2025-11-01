@@ -2,65 +2,68 @@
 #ifndef BBC_RS232_FUJI_H
 #define BBC_RS232_FUJI_H
 
-#include "../fujiDevice.h"  // This already includes disk.h via fujiDisk.h
+#include "../rs232_base/rs232fuji_base.h"
 #include "../../bus/bbc_rs232/bbc_rs232.h"
-
-#define STATUS_MOUNT_TIME 0x01
 
 /**
  * @brief BBC RS232 Fuji Device
  *
- * Minimal implementation to support disk operations for BBC Micro.
- * This class manages disk slots and handles Fuji commands over RS232.
- *
- * Note: Inherits from fujiDevice which already inherits from virtualDevice,
- * so we don't need to inherit from virtualDevice again.
+ * BBC Micro-specific implementation of the RS232 Fuji device.
+ * Inherits common RS232 Fuji functionality from rs232FujiBase and
+ * provides BBC-specific configuration (device IDs, image format, etc.).
  */
-class bbcRS232Fuji : public fujiDevice
+class bbcRS232Fuji : public rs232FujiBase
 {
-private:
-
 protected:
-    // Implement fujiDevice pure virtuals with RS232 protocol
-    void transaction_complete() override { rs232_complete(); }
-    void transaction_error() override { rs232_error(); }
+    /**
+     * @brief Get BBC-specific disk device ID base
+     * @return RS232_DEVICEID_DISK (0x31)
+     */
+    uint8_t get_disk_device_id_base() const override { return RS232_DEVICEID_DISK; }
     
-    bool transaction_get(void *data, size_t len) override {
-        uint8_t ck = virtualDevice::bus_to_peripheral((uint8_t *)data, len);
-        if (RS232Protocol::calculate_checksum((uint8_t *)data, len) != ck)
-            return false;
-        return true;
-    }
+    /**
+     * @brief Get BBC-specific network device ID base
+     * @return RS232_DEVICEID_NETWORK (0x71)
+     */
+    uint8_t get_network_device_id_base() const override { return RS232_DEVICEID_NETWORK; }
     
-    void transaction_put(const void *data, size_t len, bool err) override {
-        virtualDevice::bus_to_computer((uint8_t *)data, len, err);
-    }
+    /**
+     * @brief Get BBC-specific image extension
+     * @return ".ssd" for BBC disk images
+     */
+    const char* get_image_extension() const override { return ".ssd"; }
     
+    /**
+     * @brief Get BBC-specific default media type
+     * @return MEDIATYPE_UNKNOWN
+     */
+    mediatype_t get_default_mediatype() const override { return mediatype_t::MEDIATYPE_UNKNOWN; }
+    
+    /**
+     * @brief BBC-specific directory entry formatting
+     *
+     * Formats directory entry information for transmission to BBC Micro.
+     *
+     * @param f Directory entry to format
+     * @param dest Destination buffer
+     * @param maxlen Maximum length
+     * @return Number of bytes written
+     */
     size_t setDirEntryDetails(fsdir_entry_t *f, uint8_t *dest, uint8_t maxlen) override;
     
-    // BBC-specific command handlers (minimal set for disk support)
-    void rs232_new_disk();           // Create new disk image
-    void rs232_open_directory();     // Open directory for browsing
-    void rs232_copy_file();          // Copy file between hosts
+    /**
+     * @brief Add BBC-specific devices to the bus
+     *
+     */
+    void addDevices() override;
 
 public:
     /**
-     * @brief Setup the Fuji device
-     * 
-     * Initializes disk slots and adds devices to the bus
-     */
-    void setup() override;
-    
-    /**
-     * @brief RS232 status command
-     */
-    void rs232_status() override;
-    
-    /**
-     * @brief RS232 command processor
-     * 
-     * Handles Fuji commands received over RS232
-     * 
+     * @brief RS232 command processor override
+     *
+     * Handles BBC-specific commands and rejects network commands.
+     * Calls base class for common commands.
+     *
      * @param cmd_ptr Pointer to command frame
      */
     void rs232_process(cmdFrame_t *cmd_ptr) override;
