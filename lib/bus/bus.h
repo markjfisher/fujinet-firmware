@@ -51,7 +51,6 @@
 
 #ifdef BUILD_BBC_RS232
 #include "bbc_rs232/bbc_rs232.h"
-#define SYSTEM_BUS BBC_RS232
 #endif
 
 #ifdef BUILD_CX16

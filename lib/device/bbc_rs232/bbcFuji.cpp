@@ -39,7 +39,7 @@ void bbcRS232Fuji::setup()
     // Add disk devices to the bus
     for (int i = 0; i < MAX_DISK_DEVICES; i++)
     {
-        BBC_RS232.addDevice(&_fnDisks[i].disk_dev, RS232_DEVICEID_DISK + i);
+        SYSTEM_BUS.addDevice(&_fnDisks[i].disk_dev, RS232_DEVICEID_DISK + i);
         Debug_printf("Added disk device %d at ID 0x%02X\n", i, RS232_DEVICEID_DISK + i);
     }
     
@@ -202,12 +202,12 @@ void bbcRS232Fuji::rs232_process(cmdFrame_t *cmd_ptr)
         
     case FUJICMD_MOUNT_IMAGE:
         rs232_ack();
-        fujicmd_disk_image_mount_success(cmdFrame.aux1, cmdFrame.aux2);
+        fujicmd_mount_disk_image_success(cmdFrame.aux1, cmdFrame.aux2);
         break;
         
     case FUJICMD_UNMOUNT_IMAGE:
         rs232_ack();
-        fujicmd_disk_image_unmount_success(cmdFrame.aux1);
+        fujicmd_unmount_disk_image_success(cmdFrame.aux1);
         break;
         
     case FUJICMD_OPEN_DIRECTORY:

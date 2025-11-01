@@ -95,12 +95,6 @@ public:
     void toggleBaudrate();
 };
 
-/**
- * @brief Global BBC RS232 bus instance
- */
-extern systemBus BBC_RS232;
-
-// This is for backwards compatibility until all SYSTEM_BUS references are removed and use the appropriate get_bus() call
-#define SYSTEM_BUS BBC_RS232
+extern systemBus SYSTEM_BUS;
 
 #endif // BBC_RS232_H

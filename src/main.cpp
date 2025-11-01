@@ -342,8 +342,8 @@ void main_setup(int argc, char *argv[])
     // BBC RS232 minimal setup - disk support only
     Debug_print("BBC RS232 initialization\n");
     theFuji->setup();
-    BBC_RS232.setup();
-    BBC_RS232.addDevice(theFuji, RS232_DEVICEID_FUJINET);
+    SYSTEM_BUS.setup();
+    SYSTEM_BUS.addDevice(theFuji, RS232_DEVICEID_FUJINET);
     Debug_print("BBC RS232 setup complete\n");
 #endif
 

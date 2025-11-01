@@ -6,11 +6,6 @@
 #include "../../include/debug.h"
 
 
-/**
- * @brief Global BBC RS232 bus instance
- */
-systemBus BBC_RS232;
-
 // ========================================================================
 // virtualDevice methods
 // ========================================================================
@@ -20,7 +15,7 @@ systemBus BBC_RS232;
  */
 systemBus virtualDevice::rs232_get_bus()
 {
-    return BBC_RS232;
+    return SYSTEM_BUS;
 }
 
 // ========================================================================
@@ -32,7 +27,6 @@ systemBus virtualDevice::rs232_get_bus()
  */
 void systemBus::setup()
 {
-    // Debug_print("BBC_RS232::setup()\n");
     Debug_printf("BBC_RS232::setup(): Baud rate: %u\n", Config.get_rs232_baud());
 
     // Set up UART
