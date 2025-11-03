@@ -306,7 +306,7 @@ public:
      * @param pDevice Pointer to virtualDevice
      * @param device_id The ID to assign to virtualDevice
      */
-    void addDevice(virtualDevice *pDevice, int device_id);
+    void addDevice(virtualDevice *pDevice, FujiDeviceID device_id);
 
     /**
      * @brief Remove device from bus
@@ -319,14 +319,14 @@ public:
      * @param device_id ID of device to return.
      * @return pointer to virtualDevice
      */
-    virtualDevice *deviceById(int device_id);
+    virtualDevice *deviceById(FujiDeviceID device_id);
 
     /**
      * @brief Change ID of a particular virtualDevice
      * @param pDevice pointer to virtualDevice
      * @param device_id new device ID
      */
-    void changeDeviceId(virtualDevice *pDevice, int device_id);
+    void changeDeviceId(virtualDevice *pDevice, FujiDeviceID device_id);
 
     /**
      * @brief Are we shutting down?

@@ -3,6 +3,7 @@
 
 #include "UARTChannel.h"
 #include "NetSIO.h"
+#include "fujiDeviceID.h"
 #include <forward_list>
 
 #define DELAY_T4 850
@@ -50,24 +51,22 @@ FN_HISPEED_INDEX=40 //  18,806 (18,806) baud
 #define COMMAND_FRAME_SPEED_CHANGE_THRESHOLD 2
 #define SERIAL_TIMEOUT 300
 
-typedef struct
+union cmdFrame_t
 {
-    union {
-        struct {
-            uint8_t device;
-            uint8_t comnd;
-            union {
-                struct {
-                    uint8_t aux1;
-                    uint8_t aux2;
-                };
-                uint16_t aux12;
-            };
-        };
-        uint32_t commanddata;
+    struct
+    {
+        uint8_t device;
+        uint8_t comnd;
+        uint8_t aux1;
+        uint8_t aux2;
+        uint8_t cksum;
     };
-    uint8_t cksum;
-} __attribute__((packed)) cmdFrame_t;
+    struct
+    {
+        uint32_t commanddata;
+        uint8_t checksum;
+    } __attribute__((packed));
+};
 
 // helper functions
 uint8_t sio_checksum(uint8_t *buf, unsigned short len);
@@ -87,7 +86,7 @@ class virtualDevice
 protected:
     friend systemBus;
 
-    int _devnum;
+    fujiDeviceID_t _devnum;
 
     cmdFrame_t cmdFrame;
     bool listen_to_type3_polls = false;
@@ -178,7 +177,7 @@ public:
      * @brief get the SIO device Number (1-255)
      * @return The device number registered for this device
      */
-    int id() { return _devnum; };
+    fujiDeviceID_t id() { return _devnum; };
 
     /**
      * @brief Command 0x3F '?' intended to return a single byte to the atari via bus_to_computer(), which
@@ -261,10 +260,10 @@ public:
     void shutdown();
 
     int numDevices();
-    void addDevice(virtualDevice *pDevice, int device_id);
+    void addDevice(virtualDevice *pDevice, fujiDeviceID_t device_id);
     void remDevice(virtualDevice *pDevice);
-    virtualDevice *deviceById(int device_id);
-    void changeDeviceId(virtualDevice *pDevice, int device_id);
+    virtualDevice *deviceById(fujiDeviceID_t device_id);
+    void changeDeviceId(virtualDevice *pDevice, fujiDeviceID_t device_id);
 
     int getBaudrate();                                          // Gets current SIO baud rate setting
     void setBaudrate(int baud);                                 // Sets SIO to specific baud rate

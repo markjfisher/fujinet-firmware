@@ -437,13 +437,17 @@ if(FUJINET_TARGET STREQUAL "BBC_RS232")
     lib/media/bbc/mediatype_ssd.h lib/media/bbc/mediatype_ssd.cpp
     lib/media/bbc/mediatype_dsd.h lib/media/bbc/mediatype_dsd.cpp
 
-    # BBC RS232 devices (only disk and Fuji initially)
+    # fujinet base device
+    lib/device/rs232_base/rs232fuji_base.cpp lib/device/rs232_base/rs232fuji_base.h
+
+    # BBC RS232 devices
     lib/device/bbc_rs232/disk.h lib/device/bbc_rs232/disk.cpp
     lib/device/bbc_rs232/bbcFuji.h lib/device/bbc_rs232/bbcFuji.cpp
+
     # Additional BBC RS232 devices to be added as needed:
     # lib/device/bbc_rs232/printer.h lib/device/bbc_rs232/printer.cpp
     # lib/device/bbc_rs232/network.h lib/device/bbc_rs232/network.cpp
-    
+
     )
 endif()
 

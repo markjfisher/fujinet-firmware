@@ -2,6 +2,7 @@
 #define RS232_H
 
 #include "UARTChannel.h"
+#include "fujiDeviceID.h"
 
 #ifdef ESP_PLATFORM
 #include <freertos/FreeRTOS.h>
@@ -58,7 +59,7 @@ class virtualDevice
 protected:
     friend systemBus;
 
-    int _devnum;
+    fujiDeviceID_t _devnum;
 
     cmdFrame_t cmdFrame;
     bool listen_to_type3_polls = false;
@@ -140,7 +141,7 @@ public:
      * @brief get the RS232 device Number (1-255)
      * @return The device number registered for this device
      */
-    int id() { return _devnum; };
+    fujiDeviceID_t id() { return _devnum; };
 
     /**
      * @brief Command 0x3F '?' intended to return a single byte to the atari via bus_to_computer(), which
@@ -212,10 +213,10 @@ public:
     void shutdown();
 
     int numDevices();
-    void addDevice(virtualDevice *pDevice, int device_id);
+    void addDevice(virtualDevice *pDevice, fujiDeviceID_t device_id);
     void remDevice(virtualDevice *pDevice);
-    virtualDevice *deviceById(int device_id);
-    void changeDeviceId(virtualDevice *pDevice, int device_id);
+    virtualDevice *deviceById(fujiDeviceID_t device_id);
+    void changeDeviceId(virtualDevice *pDevice, fujiDeviceID_t device_id);
 
     int getBaudrate();                                          // Gets current RS232 baud rate setting
     void setBaudrate(int baud);                                 // Sets RS232 to specific baud rate

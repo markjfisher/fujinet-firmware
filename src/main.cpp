@@ -242,10 +242,10 @@ void main_setup(int argc, char *argv[])
     SIO.addDevice(theFuji, SIO_DEVICEID_FUJINET); // the FUJINET!
 
     if (Config.get_apetime_enabled() == true)
-        SYSTEM_BUS.addDevice(&clockDevice, SIO_DEVICEID_APETIME); // Clock for Atari, APETime compatible, but extended for additional return types
+        SYSTEM_BUS.addDevice(&clockDevice, FUJI_DEVICEID_CLOCK); // Clock for Atari, APETime compatible, but extended for additional return types
 
 #ifdef ESP_PLATFORM
-    SYSTEM_BUS.addDevice(&udpDev, SIO_DEVICEID_MIDI); // UDP/MIDI device
+    SYSTEM_BUS.addDevice(&udpDev, FUJI_DEVICEID_MIDI); // UDP/MIDI device
 #endif
 
     // add PCLink device only if we have SD card
@@ -257,7 +257,7 @@ void main_setup(int argc, char *argv[])
 #else
         pcLink.mount(1, Config.get_general_SD_path().c_str()); // mount SD as PCL1:
 #endif
-        SYSTEM_BUS.addDevice(&pcLink, SIO_DEVICEID_PCLINK); // PCLink
+        SYSTEM_BUS.addDevice(&pcLink, FUJI_DEVICEID_PCLINK); // PCLink
     }
 
     // Create a new printer object, setting its output depending on whether we have SD or not
@@ -271,15 +271,16 @@ void main_setup(int argc, char *argv[])
     sioPrinter *ptr = new sioPrinter(ptrfs, ptype);
     fnPrinters.set_entry(0, ptr, ptype, Config.get_printer_port(0));
 
-    SYSTEM_BUS.addDevice(ptr, SIO_DEVICEID_PRINTER + fnPrinters.get_port(0)); // P:
+    SYSTEM_BUS.addDevice(ptr, (fujiDeviceID_t) (FUJI_DEVICEID_PRINTER
+                                                + fnPrinters.get_port(0))); // P:
 
     sioR = new modem(ptrfs, Config.get_modem_sniffer_enabled()); // Config/User selected sniffer enable
 
-    SYSTEM_BUS.addDevice(sioR, SIO_DEVICEID_RS232); // R:
+    SYSTEM_BUS.addDevice(sioR, FUJI_DEVICEID_SERIAL); // R:
 
-    SYSTEM_BUS.addDevice(&sioV, SIO_DEVICEID_FN_VOICE); // P3:
+    SYSTEM_BUS.addDevice(&sioV, FUJI_DEVICEID_VOICE); // P3:
 
-    SYSTEM_BUS.addDevice(&sioZ, SIO_DEVICEID_CPM); // (ATR8000 CPM)
+    SYSTEM_BUS.addDevice(&sioZ, FUJI_DEVICEID_CPM); // (ATR8000 CPM)
 
     // Go setup SIO
     SYSTEM_BUS.setup();

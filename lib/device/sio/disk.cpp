@@ -123,7 +123,7 @@ void sioDisk::sio_status()
 
     uint8_t _status[4];
     _status[0] = 0x00;
-    
+
     if (_disk != nullptr)
     {
         if (_disk->_disk_num_sectors == 1040)

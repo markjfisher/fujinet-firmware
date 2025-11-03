@@ -379,17 +379,17 @@ public:
     int64_t start_time;
 
     int numDevices();
-    void addDevice(virtualDevice *pDevice, uint8_t device_id);
+    void addDevice(virtualDevice *pDevice, FujiDeviceID device_id);
     void remDevice(virtualDevice *pDevice);
-    void remDevice(uint8_t device_id);
-    bool deviceExists(uint8_t device_id);
-    void enableDevice(uint8_t device_id);
-    void disableDevice(uint8_t device_id);
-    bool enabledDeviceStatus(uint8_t device_id);
-    void streamDevice(uint8_t device_id);
+    void remDevice(FujiDeviceID device_id);
+    bool deviceExists(FujiDeviceID device_id);
+    void enableDevice(FujiDeviceID device_id);
+    void disableDevice(FujiDeviceID device_id);
+    bool enabledDeviceStatus(FujiDeviceID device_id);
+    void streamDevice(FujiDeviceID device_id);
     void streamDeactivate();
-    virtualDevice *deviceById(uint8_t device_id);
-    void changeDeviceId(virtualDevice *pDevice, uint8_t device_id);
+    virtualDevice *deviceById(FujiDeviceID device_id);
+    void changeDeviceId(virtualDevice *pDevice, FujiDeviceID device_id);
     QueueHandle_t qrc2014Messages = nullptr;
 
     bool shuttingDown = false;                                  // TRUE if we are in shutdown process
