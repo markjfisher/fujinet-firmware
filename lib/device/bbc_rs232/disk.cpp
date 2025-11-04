@@ -347,7 +347,7 @@ void bbcRS232Disk::rs232_process(cmdFrame_t *cmd_ptr)
 /**
  * @brief Create a blank BBC disk image
  */
-bool bbcRS232Disk::write_blank(fnFile *f, uint16_t sector_size, uint16_t num_sectors)
+bool bbcRS232Disk::write_blank(fnFile *f, uint16_t sector_size, uint32_t num_sectors)
 {
     Debug_printf("bbcRS232Disk::write_blank(sector_size=%u, num_sectors=%u)\n",
                  sector_size, num_sectors);

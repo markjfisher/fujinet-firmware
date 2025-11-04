@@ -128,7 +128,7 @@ public:
      * @param num_sectors Number of sectors
      * @return true if error occurred, false on success
      */
-    bool write_blank(fnFile *f, uint16_t sector_size, uint16_t num_sectors) override;
+    bool write_blank(fnFile *f, uint16_t sector_size, uint32_t num_sectors) override;
 };
 
 #endif // BBC_RS232_DISK_H

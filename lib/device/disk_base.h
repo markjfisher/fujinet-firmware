@@ -135,11 +135,11 @@ public:
      * @param filename Name of the file (for type detection)
      * @param disksize Size of the disk image in bytes
      * @param disk_type Explicit media type (or MEDIATYPE_UNKNOWN for auto-detect)
-     * @param access_mode 
+     * @param is_readonly Is it mounting in readonly mode? Defaults to true
      * @return The detected/mounted media type, or MEDIATYPE_UNKNOWN on failure
      */
     mediatype_t mount(fnFile *f, const char *filename, uint32_t disksize, 
-                      mediatype_t disk_type = MEDIATYPE_UNKNOWN, bool is_readonly);
+                      mediatype_t disk_type = MEDIATYPE_UNKNOWN, bool is_readonly = true);
     
     /**
      * @brief Unmount the current disk image
