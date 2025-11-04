@@ -9,6 +9,7 @@
 #include <endian.h>
 
 #include "../../include/debug.h"
+#include "../../utils/utils.h"
 
 /**
  * @brief Common setup implementation
@@ -48,7 +49,9 @@ void rs232FujiBase::setup()
 bool rs232FujiBase::transaction_get(void *data, size_t len)
 {
     uint8_t ck = virtualDevice::bus_to_peripheral((uint8_t *)data, len);
-    return RS232Protocol::calculate_checksum((uint8_t *)data, len) == ck;
+    uint8_t calculated = RS232Protocol::calculate_checksum((uint8_t *)data, len);
+    Debug_printv("ck: %02x, calc: %02x, data:\n%s", ck, calculated, util_hexdump(data, len).c_str());
+    return calculated == ck;
 }
 
 /**
@@ -84,6 +87,7 @@ void rs232FujiBase::rs232_status()
     }
     else
     {
+        // each device type seems to fill this in, e.g. network setups up its own status. Why is this here though?
         char ret[4] = {0};
         Debug_printf("Status for what? %08lx\n", cmdFrame.aux);
         transaction_put((uint8_t *)ret, sizeof(ret), false);
@@ -92,7 +96,7 @@ void rs232FujiBase::rs232_status()
 
 /**
  * @brief Create new disk image
- * 
+ *
  * Common implementation for creating a new blank disk image.
  */
 void rs232FujiBase::rs232_new_disk()
@@ -103,6 +107,10 @@ void rs232FujiBase::rs232_new_disk()
     {
         unsigned short numSectors;
         unsigned short sectorSize;
+        // NEW FIELD TO ALLOW USERS TO SPECIFY THE DISK TYPE TO CREATE
+        // required to differentiate between types that have similar geometry, e.g. 40 Track DSD  and 80 Track SSD on BBC
+        // TODO: probably needs rework in general as this also has a crappy large filename buffer
+        unsigned short mediaType;
         unsigned char hostSlot;
         unsigned char deviceSlot;
         char filename[MAX_FILENAME_LEN];
@@ -145,7 +153,11 @@ void rs232FujiBase::rs232_new_disk()
         return;
     }
     
-    bool ok = disk.disk_dev.write_blank(disk.fileh, newDisk.sectorSize, newDisk.numSectors);
+    // Pass the media type to write_blank
+    mediatype_t disk_type = static_cast<mediatype_t>(newDisk.mediaType);
+    Debug_printf("Creating disk with mediaType=0x%04X\n", disk_type);
+    
+    bool ok = disk.disk_dev.write_blank(disk.fileh, newDisk.sectorSize, newDisk.numSectors, disk_type);
     fnio::fclose(disk.fileh);
     
     if (ok == false)
@@ -209,6 +221,7 @@ void rs232FujiBase::rs232_process(cmdFrame_t *cmd_ptr)
     Debug_println("rs232FujiBase::rs232_process()");
     
     cmdFrame = *cmd_ptr;
+    Debug_printf("CF: %02x %02x %02x %02x %02x %02x [chk: %02x]\n", cmdFrame.device, cmdFrame.comnd, cmdFrame.aux1, cmdFrame.aux2, cmdFrame.aux3, cmdFrame.aux4, cmdFrame.cksum);
     
     switch (cmdFrame.comnd)
     {
@@ -270,6 +283,11 @@ void rs232FujiBase::rs232_process(cmdFrame_t *cmd_ptr)
     case FUJICMD_WRITE_HOST_SLOTS:
         rs232_ack();
         fujicmd_write_host_slots();
+        break;
+        
+    case FUJICMD_WRITE_HOST_SLOT_N:
+        rs232_ack();
+        fujicmd_write_host_slot_n();
         break;
         
     case FUJICMD_READ_DEVICE_SLOTS:

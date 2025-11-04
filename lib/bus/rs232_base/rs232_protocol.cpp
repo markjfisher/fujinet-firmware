@@ -2,6 +2,8 @@
 
 #include <cstring>
 
+#include "../../../include/debug.h"
+
 // ============================================================================
 // Protocol Functions Implementation
 // ============================================================================
@@ -159,6 +161,7 @@ uint8_t RS232DeviceBase::bus_to_peripheral(uint8_t *buff, uint16_t len)
  */
 void RS232DeviceBase::rs232_ack()
 {
+    Debug_printv("Sending: ACK");
     _bus->writeByte('A');
     _bus->flushOutput();
 }
@@ -170,6 +173,7 @@ void RS232DeviceBase::rs232_ack()
  */
 void RS232DeviceBase::rs232_nak()
 {
+    Debug_printv("Sending: NAK");
     _bus->writeByte('N');
     _bus->flushOutput();
 }
@@ -181,6 +185,7 @@ void RS232DeviceBase::rs232_nak()
  */
 void RS232DeviceBase::rs232_complete()
 {
+    Debug_printv("Sending: COMPLETE");
     _bus->writeByte('C');
     _bus->flushOutput();
 }
@@ -192,6 +197,7 @@ void RS232DeviceBase::rs232_complete()
  */
 void RS232DeviceBase::rs232_error()
 {
+    Debug_printv("Sending: ERROR");
     _bus->writeByte('E');
     _bus->flushOutput();
 }

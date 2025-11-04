@@ -169,10 +169,6 @@ mediatype_t MediaTypeDSD::mount(fnFile *f, uint32_t disksize)
         return MEDIATYPE_UNKNOWN;
     }
     
-    // Check if file is writable
-    // For now, assume read-only. This can be enhanced later.
-    _readonly = true;
-    
     return MEDIATYPE_DSD;
 }
 
@@ -241,12 +237,6 @@ bool MediaTypeDSD::write(uint32_t sector_num, bool verify)
     if (_file == nullptr)
     {
         Debug_print("ERROR: No file mounted\n");
-        return true; // Error
-    }
-    
-    if (_readonly)
-    {
-        Debug_print("ERROR: Disk is read-only\n");
         return true; // Error
     }
     

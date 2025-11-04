@@ -29,7 +29,7 @@ bbcRS232Disk::~bbcRS232Disk()
  *
  * Creates MediaType objects for BBC-supported formats.
  */
-MediaTypeBase* bbcRS232Disk::create_media_type(mediatype_t disk_type)
+std::unique_ptr<MediaTypeBase> bbcRS232Disk::create_media_type(mediatype_t disk_type)
 {
     Debug_printf("bbcRS232Disk::create_media_type(0x%04X)\n", disk_type);
     
@@ -37,11 +37,11 @@ MediaTypeBase* bbcRS232Disk::create_media_type(mediatype_t disk_type)
     {
     case MEDIATYPE_SSD:
         Debug_print("Creating MediaTypeSSD\n");
-        return new MediaTypeSSD();
+        return std::make_unique<MediaTypeSSD>();
         
     case MEDIATYPE_DSD:
         Debug_print("Creating MediaTypeDSD\n");
-        return new MediaTypeDSD();
+        return std::make_unique<MediaTypeDSD>();
         
     case MEDIATYPE_ADFS:
         Debug_print("ADFS format not yet implemented\n");
@@ -62,7 +62,7 @@ bool bbcRS232Disk::read_sector(uint32_t sector_num, uint8_t *buffer, uint16_t *c
 {
     Debug_printf("bbcRS232Disk::read_sector(%u)\n", sector_num);
     
-    if (_media == nullptr)
+    if (!is_mounted())
     {
         Debug_print("ERROR: No media mounted\n");
         return true; // Error
@@ -82,20 +82,20 @@ bool bbcRS232Disk::read_sector(uint32_t sector_num, uint8_t *buffer, uint16_t *c
 
 /**
  * @brief Write a sector to the mounted media
- * 
+ * @return Error status, true if there was an error
  * Implements DiskBase pure virtual method for BBC protocol.
  */
 bool bbcRS232Disk::write_sector(uint32_t sector_num, const uint8_t *buffer, uint16_t *count, bool verify)
 {
     Debug_printf("bbcRS232Disk::write_sector(%u, verify=%d)\n", sector_num, verify);
-    
-    if (_media == nullptr)
+
+    if (!is_mounted())
     {
         Debug_print("ERROR: No media mounted\n");
         return true; // Error
     }
     
-    if (_readonly || _media->is_readonly())
+    if (_readonly)
     {
         Debug_print("ERROR: Media is read-only\n");
         return true; // Error
@@ -143,7 +143,7 @@ void bbcRS232Disk::get_status(uint8_t *status_buffer, size_t buffer_size)
     // Initialize status bytes
     memset(status_buffer, 0, buffer_size);
     
-    if (_media == nullptr)
+    if (!is_mounted())
     {
         // No disk present
         status_buffer[0] = 0x00;
@@ -153,7 +153,7 @@ void bbcRS232Disk::get_status(uint8_t *status_buffer, size_t buffer_size)
     // Byte 0: Drive status
     status_buffer[0] = 0x01; // Disk present
     
-    if (_readonly || _media->is_readonly())
+    if (_readonly)
     {
         status_buffer[0] |= 0x08; // Write protected
     }
@@ -203,7 +203,7 @@ void bbcRS232Disk::rs232_read()
 {
     Debug_print("bbcRS232Disk::rs232_read()\n");
     
-    if (_media == nullptr)
+    if (!is_mounted())
     {
         rs232_error();
         return;
@@ -229,7 +229,7 @@ void bbcRS232Disk::rs232_write(bool verify)
 {
     Debug_printf("bbcRS232Disk::rs232_write(verify=%d)\n", verify);
     
-    if (_media == nullptr)
+    if (!is_mounted())
     {
         rs232_error();
         return;
@@ -266,7 +266,7 @@ void bbcRS232Disk::rs232_format()
 {
     Debug_print("bbcRS232Disk::rs232_format()\n");
     
-    if (_media == nullptr)
+    if (!is_mounted())
     {
         rs232_error();
         return;
@@ -347,10 +347,10 @@ void bbcRS232Disk::rs232_process(cmdFrame_t *cmd_ptr)
 /**
  * @brief Create a blank BBC disk image
  */
-bool bbcRS232Disk::write_blank(fnFile *f, uint16_t sector_size, uint16_t num_sectors)
+bool bbcRS232Disk::write_blank(fnFile *f, uint16_t sector_size, uint32_t num_sectors, mediatype_t disk_type)
 {
-    Debug_printf("bbcRS232Disk::write_blank(sector_size=%u, num_sectors=%u)\n",
-                 sector_size, num_sectors);
+    Debug_printf("bbcRS232Disk::write_blank(sector_size=%u, num_sectors=%u, disk_type=0x%04X)\n",
+                 sector_size, num_sectors, disk_type);
     
     // BBC disks should be 256 bytes per sector
     if (sector_size != 256)
@@ -359,14 +359,77 @@ bool bbcRS232Disk::write_blank(fnFile *f, uint16_t sector_size, uint16_t num_sec
         return true; // Error
     }
     
-    // Determine if this should be SSD or DSD based on sector count
-    // SSD: 400 sectors (40 tracks) or 800 sectors (80 tracks)
-    // DSD: 800 sectors (40 tracks) or 1600 sectors (80 tracks)
+    // Determine media type and track count
+    // BBC disk formats:
+    // - 40 track SSD: 400 sectors = 100KB
+    // - 40 track DSD: 800 sectors = 200KB
+    // - 80 track SSD: 800 sectors = 200KB
+    // - 80 track DSD: 1600 sectors = 400KB
     
-    bool is_dsd = (num_sectors == 800 || num_sectors == 1600);
-    uint8_t tracks = (num_sectors >= 800) ? 80 : 40;
+    mediatype_t media_type = disk_type;
+    uint8_t tracks = 0;
     
-    if (is_dsd)
+    // If media type is explicitly specified, use it
+    if (disk_type == MEDIATYPE_SSD || disk_type == MEDIATYPE_DSD)
+    {
+        // Calculate tracks based on sector count and media type
+        if (disk_type == MEDIATYPE_SSD)
+        {
+            // SSD: 10 sectors per track, single-sided
+            tracks = num_sectors / 10;
+            if (tracks != 40 && tracks != 80)
+            {
+                Debug_printf("ERROR: Invalid SSD sector count %u (expected 400 or 800)\n", num_sectors);
+                return true; // Error
+            }
+        }
+        else // MEDIATYPE_DSD
+        {
+            // DSD: 10 sectors per track, double-sided (20 sectors per track total)
+            tracks = num_sectors / 20;
+            if (tracks != 40 && tracks != 80)
+            {
+                Debug_printf("ERROR: Invalid DSD sector count %u (expected 800 or 1600)\n", num_sectors);
+                return true; // Error
+            }
+        }
+    }
+    else
+    {
+        // Auto-detect based on sector count (with preference for more common formats)
+        if (num_sectors == 400)
+        {
+            // Unambiguous: 40 track SSD
+            media_type = MEDIATYPE_SSD;
+            tracks = 40;
+        }
+        else if (num_sectors == 800)
+        {
+            // Ambiguous: could be 40 track DSD or 80 track SSD
+            // Default to 80 track SSD as it's more common
+            Debug_print("WARNING: 800 sectors is ambiguous (40T DSD or 80T SSD)\n");
+            Debug_print("Defaulting to 80 track SSD. Use explicit disk_type to override.\n");
+            media_type = MEDIATYPE_SSD;
+            tracks = 80;
+        }
+        else if (num_sectors == 1600)
+        {
+            // Unambiguous: 80 track DSD
+            media_type = MEDIATYPE_DSD;
+            tracks = 80;
+        }
+        else
+        {
+            Debug_printf("ERROR: Invalid sector count %u for BBC disk\n", num_sectors);
+            return true; // Error
+        }
+    }
+    
+    Debug_printf("Creating %s disk with %u tracks\n",
+                 (media_type == MEDIATYPE_DSD) ? "DSD" : "SSD", tracks);
+    
+    // Create the disk using the appropriate media type
+    if (media_type == MEDIATYPE_DSD)
     {
         return MediaTypeDSD::create(f, tracks);
     }

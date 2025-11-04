@@ -2,6 +2,7 @@
 #ifndef BBC_RS232_DISK_H
 #define BBC_RS232_DISK_H
 
+#include <memory>
 #include "../disk_base.h"
 #include "../../bus/bbc_rs232/bbc_rs232.h"
 
@@ -104,7 +105,7 @@ protected:
      * @param disk_type The media type to create
      * @return Pointer to new MediaType object or nullptr if unsupported
      */
-    MediaTypeBase* create_media_type(mediatype_t disk_type) override;
+    std::unique_ptr<MediaTypeBase> create_media_type(mediatype_t disk_type) override;
 
 public:
     /**
@@ -119,15 +120,16 @@ public:
     
     /**
      * @brief Create a blank BBC disk image
-     * 
+     *
      * Overrides DiskBase::write_blank() to support BBC formats.
-     * 
+     *
      * @param f File handle to write to
      * @param sector_size Size of each sector (should be 256 for BBC)
      * @param num_sectors Number of sectors
+     * @param disk_type Explicit media type (MEDIATYPE_SSD or MEDIATYPE_DSD)
      * @return true if error occurred, false on success
      */
-    bool write_blank(fnFile *f, uint16_t sector_size, uint16_t num_sectors) override;
+    bool write_blank(fnFile *f, uint16_t sector_size, uint32_t num_sectors, mediatype_t disk_type = MEDIATYPE_UNKNOWN) override;
 };
 
 #endif // BBC_RS232_DISK_H
