@@ -21,7 +21,6 @@ MediaTypeBase::MediaTypeBase()
     _num_sectors = 0;
     _sector_size = 256;
     _last_sector = INVALID_SECTOR_VALUE;
-    _readonly = true;
     _host = nullptr;
     _media_type = MEDIATYPE_UNKNOWN;
     
@@ -54,7 +53,6 @@ void MediaTypeBase::unmount()
     _image_size = 0;
     _num_sectors = 0;
     _last_sector = INVALID_SECTOR_VALUE;
-    _readonly = true;
     _media_type = MEDIATYPE_UNKNOWN;
     
     memset(_sector_buffer, 0, MEDIA_SECTORBUF_SIZE);

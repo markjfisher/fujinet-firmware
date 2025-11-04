@@ -29,7 +29,7 @@ bbcRS232Disk::~bbcRS232Disk()
  *
  * Creates MediaType objects for BBC-supported formats.
  */
-MediaTypeBase* bbcRS232Disk::create_media_type(mediatype_t disk_type)
+std::unique_ptr<MediaTypeBase> bbcRS232Disk::create_media_type(mediatype_t disk_type)
 {
     Debug_printf("bbcRS232Disk::create_media_type(0x%04X)\n", disk_type);
     
@@ -37,11 +37,11 @@ MediaTypeBase* bbcRS232Disk::create_media_type(mediatype_t disk_type)
     {
     case MEDIATYPE_SSD:
         Debug_print("Creating MediaTypeSSD\n");
-        return new MediaTypeSSD();
+        return std::make_unique<MediaTypeSSD>();
         
     case MEDIATYPE_DSD:
         Debug_print("Creating MediaTypeDSD\n");
-        return new MediaTypeDSD();
+        return std::make_unique<MediaTypeDSD>();
         
     case MEDIATYPE_ADFS:
         Debug_print("ADFS format not yet implemented\n");
@@ -62,7 +62,7 @@ bool bbcRS232Disk::read_sector(uint32_t sector_num, uint8_t *buffer, uint16_t *c
 {
     Debug_printf("bbcRS232Disk::read_sector(%u)\n", sector_num);
     
-    if (_media == nullptr)
+    if (!is_mounted())
     {
         Debug_print("ERROR: No media mounted\n");
         return true; // Error
@@ -82,20 +82,20 @@ bool bbcRS232Disk::read_sector(uint32_t sector_num, uint8_t *buffer, uint16_t *c
 
 /**
  * @brief Write a sector to the mounted media
- * 
+ * @return Error status, true if there was an error
  * Implements DiskBase pure virtual method for BBC protocol.
  */
 bool bbcRS232Disk::write_sector(uint32_t sector_num, const uint8_t *buffer, uint16_t *count, bool verify)
 {
     Debug_printf("bbcRS232Disk::write_sector(%u, verify=%d)\n", sector_num, verify);
-    
-    if (_media == nullptr)
+
+    if (!is_mounted())
     {
         Debug_print("ERROR: No media mounted\n");
         return true; // Error
     }
     
-    if (_readonly || _media->is_readonly())
+    if (_readonly)
     {
         Debug_print("ERROR: Media is read-only\n");
         return true; // Error
@@ -143,7 +143,7 @@ void bbcRS232Disk::get_status(uint8_t *status_buffer, size_t buffer_size)
     // Initialize status bytes
     memset(status_buffer, 0, buffer_size);
     
-    if (_media == nullptr)
+    if (!is_mounted())
     {
         // No disk present
         status_buffer[0] = 0x00;
@@ -153,7 +153,7 @@ void bbcRS232Disk::get_status(uint8_t *status_buffer, size_t buffer_size)
     // Byte 0: Drive status
     status_buffer[0] = 0x01; // Disk present
     
-    if (_readonly || _media->is_readonly())
+    if (_readonly)
     {
         status_buffer[0] |= 0x08; // Write protected
     }
@@ -203,7 +203,7 @@ void bbcRS232Disk::rs232_read()
 {
     Debug_print("bbcRS232Disk::rs232_read()\n");
     
-    if (_media == nullptr)
+    if (!is_mounted())
     {
         rs232_error();
         return;
@@ -229,7 +229,7 @@ void bbcRS232Disk::rs232_write(bool verify)
 {
     Debug_printf("bbcRS232Disk::rs232_write(verify=%d)\n", verify);
     
-    if (_media == nullptr)
+    if (!is_mounted())
     {
         rs232_error();
         return;
@@ -266,7 +266,7 @@ void bbcRS232Disk::rs232_format()
 {
     Debug_print("bbcRS232Disk::rs232_format()\n");
     
-    if (_media == nullptr)
+    if (!is_mounted())
     {
         rs232_error();
         return;

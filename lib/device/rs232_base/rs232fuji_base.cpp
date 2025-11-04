@@ -84,6 +84,7 @@ void rs232FujiBase::rs232_status()
     }
     else
     {
+        // each device type seems to fill this in, e.g. network setups up its own status. Why is this here though?
         char ret[4] = {0};
         Debug_printf("Status for what? %08lx\n", cmdFrame.aux);
         transaction_put((uint8_t *)ret, sizeof(ret), false);

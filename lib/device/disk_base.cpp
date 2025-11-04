@@ -1,5 +1,6 @@
 #include "disk_base.h"
 #include <cstring>
+#include <memory>
 
 // Include debug if available
 #ifdef ESP_PLATFORM
@@ -46,13 +47,12 @@ mediatype_t DiskBase::discover_media_type(const char *filename)
  * 
  * This method provides common mounting logic shared across all platforms.
  */
-mediatype_t DiskBase::mount(fnFile *f, const char *filename, uint32_t disksize, 
-                            mediatype_t disk_type)
+mediatype_t DiskBase::mount(fnFile *f, const char *filename, uint32_t disksize, mediatype_t disk_type, bool is_readonly)
 {
     Debug_print("DiskBase::mount()\n");
     
     // Unmount any existing disk
-    if (_media != nullptr)
+    if (is_mounted())
     {
         Debug_print("Unmounting existing disk\n");
         unmount();
@@ -73,8 +73,8 @@ mediatype_t DiskBase::mount(fnFile *f, const char *filename, uint32_t disksize,
     }
     
     // Create the appropriate MediaType object via factory
-    _media = create_media_type(disk_type);
-    if (_media == nullptr)
+    set_media(create_media_type(disk_type));
+    if (!is_mounted())
     {
         Debug_printf("ERROR: Failed to create media type 0x%04X\n", disk_type);
         return MEDIATYPE_UNKNOWN;
@@ -98,14 +98,13 @@ mediatype_t DiskBase::mount(fnFile *f, const char *filename, uint32_t disksize,
     if (result == MEDIATYPE_UNKNOWN)
     {
         Debug_print("ERROR: MediaType::mount() failed\n");
-        delete _media;
         _media = nullptr;
         return MEDIATYPE_UNKNOWN;
     }
     
     // Update device state
     _device_active = true;
-    _readonly = _media->is_readonly();
+    _readonly = is_readonly;
     _mount_time = time(nullptr);
     
     Debug_printf("Mount successful: %s (%u sectors, %u bytes/sector)\n",
@@ -123,10 +122,9 @@ void DiskBase::unmount()
 {
     Debug_print("DiskBase::unmount()\n");
     
-    if (_media != nullptr)
+    if (is_mounted())
     {
         _media->unmount();
-        delete _media;
         _media = nullptr;
     }
     
@@ -140,7 +138,7 @@ void DiskBase::unmount()
  * 
  * Default implementation returns error. Subclasses can override.
  */
-bool DiskBase::write_blank(fnFile *f, uint16_t sector_size, uint16_t num_sectors)
+bool DiskBase::write_blank(fnFile *f, uint16_t sector_size, uint32_t num_sectors)
 {
     Debug_print("DiskBase::write_blank() - Not implemented\n");
     return true; // Error - not implemented
@@ -151,10 +149,7 @@ bool DiskBase::write_blank(fnFile *f, uint16_t sector_size, uint16_t num_sectors
  */
 mediatype_t DiskBase::get_media_type() const
 {
-    if (_media == nullptr)
-        return MEDIATYPE_UNKNOWN;
-    
-    return _media->_media_type;
+    return is_mounted() ? _media->_media_type : MEDIATYPE_UNKNOWN;
 }
 
 /**
@@ -162,10 +157,7 @@ mediatype_t DiskBase::get_media_type() const
  */
 uint32_t DiskBase::get_num_sectors() const
 {
-    if (_media == nullptr)
-        return 0;
-    
-    return _media->num_sectors();
+    return is_mounted() ? _media->num_sectors() : 0;
 }
 
 /**
@@ -173,8 +165,5 @@ uint32_t DiskBase::get_num_sectors() const
  */
 uint16_t DiskBase::get_sector_size() const
 {
-    if (_media == nullptr)
-        return 0;
-    
-    return _media->get_sector_size();
+    return is_mounted() ? _media->get_sector_size() : 0;
 }

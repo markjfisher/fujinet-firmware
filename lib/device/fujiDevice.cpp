@@ -478,19 +478,19 @@ bool fujiDevice::fujicore_mount_disk_image_success(uint8_t deviceSlot, uint8_t a
 
     // We need the file size for loading XEX files and for CASSETTE, so get that too
     disk.disk_size = host.file_size(disk.fileh);
-
+#ifdef NEW_DISKTYPE
+    // should access_mode (a fujiDevice concept) be converted to something more consumable by disk type?
+    disk.disk_type = disk_dev->mount(disk.fileh, disk.filename, disk.disk_size, MEDIATYPE_UNKNOWN, (access_mode & DISK_ACCESS_MODE_WRITE) == DISK_ACCESS_MODE_WRITE);
+#else
     // FIXME - access_mode should be an argument to mount()
     disk.disk_type = disk_dev->mount(disk.fileh, disk.filename, disk.disk_size);
+    // TODO: should this check for the flag (it's a bitmask) rather than the value? What if it's mounted?
     if (access_mode == DISK_ACCESS_MODE_WRITE)
     {
         Debug_printv("Setting disk to read/write");
-
-#ifdef NEW_DISKTYPE
-        disk_dev->set_readonly(false);
-#else
         disk_dev->readonly = false;
-#endif
     }
+#endif
 
     return true;
 }
@@ -966,12 +966,13 @@ bool fujiDevice::fujicmd_unmount_disk_image_success(uint8_t deviceSlot)
 
     disk_dev = get_disk_dev(deviceSlot);
     if (disk_dev->device_active)
-
+    {
 #ifdef NEW_DISKTYPE
-    disk_dev->set_switched(true);
+        disk_dev->set_switched(true);
 #else
-    disk_dev->switched = true;
+        disk_dev->switched = true;
 #endif
+    }
 
     disk_dev->unmount();
     _fnDisks[deviceSlot].reset();

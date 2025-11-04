@@ -1,6 +1,7 @@
 #ifndef DISK_BASE_H
 #define DISK_BASE_H
 
+#include <memory>
 #include <stdint.h>
 #include <time.h>
 #include "../FileSystem/fnio.h"
@@ -25,7 +26,7 @@ class DiskBase
 {
 protected:
     // Media management
-    MediaTypeBase *_media = nullptr;
+    std::unique_ptr<MediaTypeBase> _media;
     
     // Device state
     bool _device_active = false;
@@ -96,7 +97,7 @@ protected:
      * @param disk_type The media type to create
      * @return Pointer to new MediaType object or nullptr if unsupported
      */
-    virtual MediaTypeBase* create_media_type(mediatype_t disk_type) = 0;
+    virtual std::unique_ptr<MediaTypeBase> create_media_type(mediatype_t disk_type) = 0;
     
     /**
      * @brief Discover media type from filename
@@ -134,10 +135,11 @@ public:
      * @param filename Name of the file (for type detection)
      * @param disksize Size of the disk image in bytes
      * @param disk_type Explicit media type (or MEDIATYPE_UNKNOWN for auto-detect)
+     * @param access_mode 
      * @return The detected/mounted media type, or MEDIATYPE_UNKNOWN on failure
      */
     mediatype_t mount(fnFile *f, const char *filename, uint32_t disksize, 
-                      mediatype_t disk_type = MEDIATYPE_UNKNOWN);
+                      mediatype_t disk_type = MEDIATYPE_UNKNOWN, bool is_readonly);
     
     /**
      * @brief Unmount the current disk image
@@ -160,7 +162,7 @@ public:
      * @param num_sectors Number of sectors
      * @return true if error occurred, false on success
      */
-    virtual bool write_blank(fnFile *f, uint16_t sector_size, uint16_t num_sectors);
+    virtual bool write_blank(fnFile *f, uint16_t sector_size, uint32_t num_sectors);
     
     /**
      * @brief Get the current media type
@@ -231,12 +233,18 @@ public:
      * @return Sector size or 0 if not mounted
      */
     uint16_t get_sector_size() const;
-    
+
+    // do we want to allow this?
     /**
      * @brief Get media object (for advanced operations)
      * @return Pointer to MediaTypeBase or nullptr
      */
-    MediaTypeBase* get_media() const { return _media; }
+    MediaTypeBase* get_media() const { return _media.get(); }
+
+    /**
+     * @brief Set media object
+     */
+    void set_media(std::unique_ptr<MediaTypeBase> media) { _media = std::move(media); }
 
     /**
      * @brief Get Disk switched flag

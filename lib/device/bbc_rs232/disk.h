@@ -2,6 +2,7 @@
 #ifndef BBC_RS232_DISK_H
 #define BBC_RS232_DISK_H
 
+#include <memory>
 #include "../disk_base.h"
 #include "../../bus/bbc_rs232/bbc_rs232.h"
 
@@ -104,7 +105,7 @@ protected:
      * @param disk_type The media type to create
      * @return Pointer to new MediaType object or nullptr if unsupported
      */
-    MediaTypeBase* create_media_type(mediatype_t disk_type) override;
+    std::unique_ptr<MediaTypeBase> create_media_type(mediatype_t disk_type) override;
 
 public:
     /**

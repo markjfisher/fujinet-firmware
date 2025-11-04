@@ -65,7 +65,6 @@ protected:
     
     // State tracking
     int32_t _last_sector = INVALID_SECTOR_VALUE;
-    bool _readonly = true;
     
     // Host reference (for network-mounted images)
     fujiHost *_host = nullptr;
@@ -186,12 +185,6 @@ public:
      * @return Default sector size in bytes
      */
     uint16_t get_sector_size() const { return _sector_size; }
-    
-    /**
-     * @brief Check if media is read-only
-     * @return true if read-only
-     */
-    bool is_readonly() const { return _readonly; }
     
     /**
      * @brief Get sector buffer
