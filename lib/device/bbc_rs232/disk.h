@@ -120,15 +120,16 @@ public:
     
     /**
      * @brief Create a blank BBC disk image
-     * 
+     *
      * Overrides DiskBase::write_blank() to support BBC formats.
-     * 
+     *
      * @param f File handle to write to
      * @param sector_size Size of each sector (should be 256 for BBC)
      * @param num_sectors Number of sectors
+     * @param disk_type Explicit media type (MEDIATYPE_SSD or MEDIATYPE_DSD)
      * @return true if error occurred, false on success
      */
-    bool write_blank(fnFile *f, uint16_t sector_size, uint32_t num_sectors) override;
+    bool write_blank(fnFile *f, uint16_t sector_size, uint32_t num_sectors, mediatype_t disk_type = MEDIATYPE_UNKNOWN) override;
 };
 
 #endif // BBC_RS232_DISK_H

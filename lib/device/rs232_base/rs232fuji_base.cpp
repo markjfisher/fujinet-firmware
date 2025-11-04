@@ -93,7 +93,7 @@ void rs232FujiBase::rs232_status()
 
 /**
  * @brief Create new disk image
- * 
+ *
  * Common implementation for creating a new blank disk image.
  */
 void rs232FujiBase::rs232_new_disk()
@@ -104,6 +104,10 @@ void rs232FujiBase::rs232_new_disk()
     {
         unsigned short numSectors;
         unsigned short sectorSize;
+        // NEW FIELD TO ALLOW USERS TO SPECIFY THE DISK TYPE TO CREATE
+        // required to differentiate between types that have similar geometry, e.g. 40 Track DSD  and 80 Track SSD on BBC
+        // TODO: probably needs rework in general as this also has a crappy large filename buffer
+        unsigned short mediaType;
         unsigned char hostSlot;
         unsigned char deviceSlot;
         char filename[MAX_FILENAME_LEN];
@@ -146,7 +150,11 @@ void rs232FujiBase::rs232_new_disk()
         return;
     }
     
-    bool ok = disk.disk_dev.write_blank(disk.fileh, newDisk.sectorSize, newDisk.numSectors);
+    // Pass the media type to write_blank
+    mediatype_t disk_type = static_cast<mediatype_t>(newDisk.mediaType);
+    Debug_printf("Creating disk with mediaType=0x%04X\n", disk_type);
+    
+    bool ok = disk.disk_dev.write_blank(disk.fileh, newDisk.sectorSize, newDisk.numSectors, disk_type);
     fnio::fclose(disk.fileh);
     
     if (ok == false)

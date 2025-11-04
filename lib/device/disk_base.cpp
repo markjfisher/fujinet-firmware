@@ -135,10 +135,10 @@ void DiskBase::unmount()
 
 /**
  * @brief Create a blank disk image
- * 
+ *
  * Default implementation returns error. Subclasses can override.
  */
-bool DiskBase::write_blank(fnFile *f, uint16_t sector_size, uint32_t num_sectors)
+bool DiskBase::write_blank(fnFile *f, uint16_t sector_size, uint32_t num_sectors, mediatype_t disk_type)
 {
     Debug_print("DiskBase::write_blank() - Not implemented\n");
     return true; // Error - not implemented

@@ -153,16 +153,17 @@ public:
     
     /**
      * @brief Create a blank disk image
-     * 
+     *
      * Default implementation returns error. Subclasses can override
      * to support creating blank images in platform-specific formats.
-     * 
+     *
      * @param f File handle to write to
      * @param sector_size Size of each sector
      * @param num_sectors Number of sectors
+     * @param disk_type Explicit media type (or MEDIATYPE_UNKNOWN for auto-detect)
      * @return true if error occurred, false on success
      */
-    virtual bool write_blank(fnFile *f, uint16_t sector_size, uint32_t num_sectors);
+    virtual bool write_blank(fnFile *f, uint16_t sector_size, uint32_t num_sectors, mediatype_t disk_type = MEDIATYPE_UNKNOWN);
     
     /**
      * @brief Get the current media type
