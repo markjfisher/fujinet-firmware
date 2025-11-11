@@ -9,6 +9,7 @@
 #include <endian.h>
 
 #include "../../include/debug.h"
+#include "../../utils/utils.h"
 
 /**
  * @brief Common setup implementation
@@ -48,7 +49,9 @@ void rs232FujiBase::setup()
 bool rs232FujiBase::transaction_get(void *data, size_t len)
 {
     uint8_t ck = virtualDevice::bus_to_peripheral((uint8_t *)data, len);
-    return RS232Protocol::calculate_checksum((uint8_t *)data, len) == ck;
+    uint8_t calculated = RS232Protocol::calculate_checksum((uint8_t *)data, len);
+    Debug_printv("ck: %02x, calc: %02x, data:\n%s", ck, calculated, util_hexdump(data, len).c_str());
+    return calculated == ck;
 }
 
 /**
@@ -218,6 +221,7 @@ void rs232FujiBase::rs232_process(cmdFrame_t *cmd_ptr)
     Debug_println("rs232FujiBase::rs232_process()");
     
     cmdFrame = *cmd_ptr;
+    Debug_printf("CF: %02x %02x %02x %02x %02x %02x [chk: %02x]\n", cmdFrame.device, cmdFrame.comnd, cmdFrame.aux1, cmdFrame.aux2, cmdFrame.aux3, cmdFrame.aux4, cmdFrame.cksum);
     
     switch (cmdFrame.comnd)
     {
@@ -279,6 +283,11 @@ void rs232FujiBase::rs232_process(cmdFrame_t *cmd_ptr)
     case FUJICMD_WRITE_HOST_SLOTS:
         rs232_ack();
         fujicmd_write_host_slots();
+        break;
+        
+    case FUJICMD_WRITE_HOST_SLOT_N:
+        rs232_ack();
+        fujicmd_write_host_slot_n();
         break;
         
     case FUJICMD_READ_DEVICE_SLOTS:

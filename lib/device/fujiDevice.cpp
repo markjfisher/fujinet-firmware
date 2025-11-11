@@ -19,6 +19,12 @@
  * =============================================================================
  */
 
+ #include <array>
+ #include <cstddef>
+ #include <algorithm>
+ #include <cstring>
+ #include <string>
+ 
 #include "fujiDevice.h"
 
 #include "fnConfig.h"
@@ -1215,6 +1221,44 @@ void fujiDevice::fujicmd_write_host_slots()
         hostMounted[i] = false;
         _fnHosts[i].set_hostname(hostSlots[i]);
     }
+    populate_config_from_slots();
+    Config.save();
+    transaction_complete();
+}
+
+// Just set the n'th host instead of having to do all of them.
+void fujiDevice::fujicmd_write_host_slot_n()
+{
+    Debug_println("Fuji cmd: WRITE HOST SLOT N");
+
+    // avoids packing struct issues
+    constexpr size_t kWireSize = 1 + MAX_HOSTNAME_LEN; // 1 byte host_num + name bytes
+    std::array<std::byte, kWireSize> buf{};
+
+    if (!transaction_get(buf.data(), buf.size())) {
+        transaction_error();
+        return;
+    }
+
+    // client sends as 1-N
+    const uint8_t host_num = std::to_integer<uint8_t>(buf[0]) - 1;
+    if (host_num >= MAX_HOSTS) {
+        transaction_error();
+        return;
+    }
+
+    // Slice name bytes
+    const char* raw_name = reinterpret_cast<const char*>(buf.data() + 1);
+    auto nul = std::find(raw_name, raw_name + MAX_HOSTNAME_LEN, '\0');
+    size_t name_len = static_cast<size_t>(nul - raw_name);
+
+    // no dynamic allocation, ensure we have a \0 terminator even if the wire data did not
+    std::array<char, MAX_HOSTNAME_LEN + 1> nt_name{};
+    std::memcpy(nt_name.data(), raw_name, name_len);
+    nt_name[name_len] = '\0';
+    _fnHosts[host_num].set_hostname(nt_name.data());
+
+    hostMounted[host_num] = false;
     populate_config_from_slots();
     Config.save();
     transaction_complete();

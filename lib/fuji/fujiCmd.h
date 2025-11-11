@@ -75,6 +75,7 @@
 #define FUJICMD_GET_DEVICE3_FULLPATH       0xA2
 #define FUJICMD_GET_DEVICE2_FULLPATH       0xA1
 #define FUJICMD_GET_DEVICE1_FULLPATH       0xA0
+#define FUJICMD_WRITE_HOST_SLOT_N          0x9F
 #define FUJICMD_STATUS                     0x53
 #define FUJICMD_HSIO_INDEX                 0x3F
 #define FUJICMD_SEND_ERROR                 0x02
