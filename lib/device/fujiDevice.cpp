@@ -1208,25 +1208,41 @@ void fujiDevice::fujicmd_read_host_slots()
 }
 
 // Read and save host slot data from computer
+// Invalid hostname blocks are rejected,
+// each must contain a valid C string of max size MAX_HOSTNAME_LEN-1
 void fujiDevice::fujicmd_write_host_slots()
 {
     Debug_println("Fuji cmd: WRITE HOST SLOTS");
 
     char hostSlots[MAX_HOSTS][MAX_HOSTNAME_LEN];
-    if (!transaction_get(&hostSlots, sizeof(hostSlots)))
+    if (!transaction_get(hostSlots, sizeof(hostSlots))) {
         transaction_error();
+        return;
+    }
 
-    for (int i = 0; i < MAX_HOSTS; i++)
-    {
+    // Validate each slot has a terminating NUL within its fixed field
+    for (int i = 0; i < MAX_HOSTS; ++i) {
+        const void* nul = std::memchr(hostSlots[i], '\0', MAX_HOSTNAME_LEN);
+        if (!nul) {
+            // No NUL in this slot -> reject the whole transaction
+            transaction_error();
+            return;
+        }
+    }
+
+    // All strings are NUL-terminated within bounds; safe to consume
+    for (int i = 0; i < MAX_HOSTS; ++i) {
         hostMounted[i] = false;
         _fnHosts[i].set_hostname(hostSlots[i]);
     }
+
     populate_config_from_slots();
     Config.save();
     transaction_complete();
 }
 
 // Just set the n'th host instead of having to do all of them.
+// This function ensures that we store a valid C string of up to MAX_HOSTNAME_LEN-1 chars, with a termninator
 void fujiDevice::fujicmd_write_host_slot_n()
 {
     Debug_println("Fuji cmd: WRITE HOST SLOT N");
@@ -1240,24 +1256,22 @@ void fujiDevice::fujicmd_write_host_slot_n()
         return;
     }
 
-    // client sends as 1-N
-    const uint8_t host_num = std::to_integer<uint8_t>(buf[0]) - 1;
+    // host numbers are 0-(N-1) in FujiNet, client has already catered for this
+    const uint8_t host_num = std::to_integer<uint8_t>(buf[0]);
     if (host_num >= MAX_HOSTS) {
         transaction_error();
         return;
     }
 
-    // Slice name bytes
     const char* raw_name = reinterpret_cast<const char*>(buf.data() + 1);
-    auto nul = std::find(raw_name, raw_name + MAX_HOSTNAME_LEN, '\0');
-    size_t name_len = static_cast<size_t>(nul - raw_name);
 
-    // no dynamic allocation, ensure we have a \0 terminator even if the wire data did not
-    std::array<char, MAX_HOSTNAME_LEN + 1> nt_name{};
-    std::memcpy(nt_name.data(), raw_name, name_len);
-    nt_name[name_len] = '\0';
-    _fnHosts[host_num].set_hostname(nt_name.data());
-
+    // Require a '\0' within the fixed field (=> max visible length <= MAX_HOSTNAME_LEN-1)
+    if (std::memchr(raw_name, '\0', MAX_HOSTNAME_LEN) == nullptr) {
+        transaction_error();
+        return;
+    }
+    
+    _fnHosts[host_num].set_hostname(raw_name);
     hostMounted[host_num] = false;
     populate_config_from_slots();
     Config.save();
